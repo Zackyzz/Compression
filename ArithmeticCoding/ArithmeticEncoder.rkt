@@ -1,5 +1,5 @@
 #lang racket
-(require "../helpers/bitwr.rkt")
+(require "../helpers/bitwr.rkt" racket/format)
 
 (define input-file "test.txt")
 (define output-file "output.txt")
@@ -7,16 +7,21 @@
 (define << arithmetic-shift)
 (define || bitwise-ior)
 (define & bitwise-and)
+(define ^ bitwise-xor)
 
+(define SIZE 257)
 (define nr-bits 32)
 (define 11..1 (- (<< 1 nr-bits) 1))
 (define 10..0 (<< 1 (- nr-bits 1)))
 (define 01..0 (<< 1 (- nr-bits 2)))
 (define 11..0 (|| 10..0 01..0))
 
-(define bit-writer (new bit-writer% [path output-file]))
+(define (binarize val [len 32]) (~r val #:base 2 #:min-width len #:pad-string "0"))
 
-(define (get-frequencies file [len 257])
+;-------------------------------------------------------------------------
+
+;return a list with the bytes frequencies from file (last one is eof)
+(define (get-frequencies file [len SIZE])
   (define in (open-input-file file))
   (vector->list
    (let loop ([counts (make-vector len 0)])
@@ -27,53 +32,54 @@
         (close-input-port in) counts]
        [else (vector-set! counts input (add1 (vector-ref counts input))) (loop counts)]))))
 
-(define (get-interval index counts)
-  (define count (list-ref counts index))
-  (define sum (apply + (take counts index)))
+(define (output-bit+storage bit storage bit-writer)
+  (send bit-writer write-bit bit)
+  (for ([i storage]) (send bit-writer write-bit (^ 1 bit))))
+
+;return low and high for a specific symbol
+(define (get-interval index counts low high)
+  (define partial-sum (apply + (take counts index)))
   (define total-sum (apply + counts))
-  (list sum (+ sum count) total-sum))
+  (define interval (+ (- high low) 1))
+  (list (+ low (quotient (* partial-sum interval) total-sum))
+        (sub1 (+ low (quotient (* (+ (list-ref counts index) partial-sum) interval) total-sum)))))
 
-(define (encode-symbol low high storage)
+;-------------------------------------------------------------------------
+
+;output bits based on the symbol interval
+(define (encode-symbol interval storage bit-writer)
+  (define low (car interval))
+  (define high (cadr interval))
   (cond
-    [(< high 10..0)
-     (send bit-writer write-bit 0)
-     (for ([i storage])
-       (send bit-writer write-bit 1))
-     (encode-symbol (& (<< low 1) 11..1)
-                    (& (|| (<< high 1) 1) 11..1)
-                    0)]
-    [(>= low 10..0)
-     (send bit-writer write-bit 1)
-     (for ([i storage])
-       (send bit-writer write-bit 0))
-     (encode-symbol (& (<< low 1) 11..1)
-                    (& (|| (<< high 1) 1) 11..1)
-                    0)]
-    [(and (>= low 01..0) (< high 11..0))
-     (encode-symbol (& (<< low 1) (sub1 10..0))
-                    (|| (<< high 1) (add1 10..0))
-                    (+ 1 storage))]
-    [else (list low high storage)]))
+    [(= 0 (<< (^ low high) (- 1 nr-bits)))
+     (output-bit+storage (<< low (- 1 nr-bits)) storage bit-writer)
+     (encode-symbol (list (& (<< low 1) 11..1)
+                          (& (|| (<< high 1) 1) 11..1))
+                    0 bit-writer)]
+    [(and (= #b01 (<< low (- 2 nr-bits))) (= #b10 (<< high (- 2 nr-bits))))
+     (encode-symbol (list (& (& (<< low 1) (sub1 10..0)) 11..1)
+                          (& (|| (<< high 1) (add1 10..0)) 11..1))
+                    (+ 1 storage) bit-writer)]
+    [else (list (list low high) storage)]))
 
-(define (arithmetic-coding file [counts (make-list 257 1)])
+;-------------------------------------------------------------------------
+
+(define (arithmetic-encode file [counts (make-list SIZE 1)])
   (define in (open-input-file file))
+  (define bit-writer (new bit-writer% [path output-file]))
   (let loop ([low 0] [high 11..1] [storage 0])
-    (printf "~a ~a ~a \n" low high storage)
     (define input (read-byte in))
     (cond
-      [(eof-object? input) #t]
+      [(eof-object? input)
+       (encode-symbol (get-interval (sub1 SIZE) counts low high) storage bit-writer)]
       [else
-       (define range (+ (- high low) 1))
-       (define interval (get-interval input counts))
        (define lh (encode-symbol
-                   (+ low (quotient (* (first interval) range) (third interval)))
-                   (sub1 (+ low (quotient (* (second interval) range) (third interval))))
-                   storage))
-       (loop (first lh) (second lh) (third lh))]))
+                   (get-interval input counts low high)
+                   storage bit-writer))
+       (loop (caar lh) (cadar lh) (cadr lh))]))
   (close-input-port in)
   (send bit-writer close-file))
 
-(time (arithmetic-coding input-file))
-
+(time (arithmetic-encode input-file (get-frequencies input-file)))
 (file-size input-file)
 (file-size output-file)
