@@ -1,5 +1,5 @@
 #lang racket
-(require "../helpers/bitwr.rkt")
+(require "../helpers/bitwr.rkt" racket/format)
 
 (define original-file "test.txt")
 (define encoded-file "encoded.txt")
@@ -14,6 +14,8 @@
 (define nr-bits 32)
 (define 11..1 (- (<< 1 nr-bits) 1))
 (define 10..0 (<< 1 (- nr-bits 1)))
+
+(define (binarize val [len 32]) (~r val #:base 2 #:min-width len #:pad-string "0"))
 
 ;-------------------------------------------------------------------------
 
@@ -75,7 +77,7 @@
   (let loop ([low 0] [high 11..1] [value (send bit-reader read-bits nr-bits)])
     (define symbol (get-symbol low high value counts))
     (cond
-      [(= (sub1 SIZE) symbol)
+      [(or (= (sub1 SIZE) symbol))
        (printf "~a ~a\n" (send bit-reader get-counter) (* 8 (file-size encoded-file))) #t]
       [else
        (send bit-writer write-bits symbol 8)

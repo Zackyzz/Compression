@@ -68,8 +68,8 @@
     (define input (read-byte in))
     (cond
       [(eof-object? input)
-       (encode-symbol (get-interval (sub1 SIZE) counts low high) storage bit-writer)
-       (output-bit+storage (if (< low (<< 10..0 (- 1))) 0 1) (+ 1 storage) bit-writer)
+       (define params (encode-symbol (get-interval (sub1 SIZE) counts low high) storage bit-writer))
+       (output-bit+storage (if (< (caar params) (<< 10..0 (- 1))) 0 1) (+ 1 (cadr params)) bit-writer)
        (send bit-writer write-bits 0 (- nr-bits 2))]
       [else
        (define params (encode-symbol (get-interval input counts low high) storage bit-writer))
