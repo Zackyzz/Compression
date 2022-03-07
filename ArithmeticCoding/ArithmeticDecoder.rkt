@@ -1,10 +1,9 @@
 #lang racket
-(require "../helpers/bitwr.rkt" racket/format)
+(require "../helpers/bitwr.rkt")
 
-(define preinput "test.txt")
-(define sizef (file-size preinput))
-(define input-file "encoded.txt")
-(define output-file "decoded.txt")
+(define original-file "test.txt")
+(define encoded-file "encoded.txt")
+(define decoded-file "decoded.txt")
 
 (define << arithmetic-shift)
 (define || bitwise-ior)
@@ -15,8 +14,6 @@
 (define nr-bits 32)
 (define 11..1 (- (<< 1 nr-bits) 1))
 (define 10..0 (<< 1 (- nr-bits 1)))
-
-(define (binarize val [len 32]) (~r val #:base 2 #:min-width len #:pad-string "0"))
 
 ;-------------------------------------------------------------------------
 
@@ -49,9 +46,8 @@
 ;-------------------------------------------------------------------------
 
 (define (arithmetic-decode file [counts (make-list SIZE 1)])
-  (define bit-reader (new bit-reader% [path input-file]))
-  (define bit-writer (new bit-writer% [path output-file]))
-  (define n 0)
+  (define bit-reader (new bit-reader% [path encoded-file]))
+  (define bit-writer (new bit-writer% [path decoded-file]))
   (let loop ([low 0] [high 11..1] [value (send bit-reader read-bits nr-bits)])
     (define count (quotient
                    (sub1 (* (add1 (- value low)) (apply + counts)))
@@ -62,10 +58,8 @@
           [(> (apply + (take counts sym)) count) (sub1 sym)]
           [else (get-sym (add1 sym))])))
     (cond
-      [(= n sizef) "done"]
-      [(= 256 symb) "done"]
+      [(= 256 symb) #t]
       [else
-       (set! n (add1 n))
        (send bit-writer write-bits symb 8)
        (define interval (get-interval symb counts low high))
        (let inner ([lh interval] [val value])
@@ -85,8 +79,6 @@
 
 ;-------------------------------------------------------------------------
 
-(time (arithmetic-decode input-file (get-frequencies preinput)))
-(file-size preinput)
-(file-size input-file)
-(file-size output-file)
-(equal? (file->string preinput) (file->string output-file))
+(time (arithmetic-decode encoded-file (get-frequencies original-file)))
+(printf "~a -> ~a -> ~a\n" (file-size original-file) (file-size encoded-file) (file-size decoded-file))
+(equal? (file->string original-file) (file->string decoded-file))

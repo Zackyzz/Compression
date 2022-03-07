@@ -1,8 +1,8 @@
 #lang racket
 (require "../helpers/bitwr.rkt" racket/format)
 
-(define input-file "testw.txt")
-(define output-file "encodedw.txt")
+(define original-file "test.txt")
+(define encoded-file "encoded.txt")
 
 (define << arithmetic-shift)
 (define || bitwise-ior)
@@ -36,10 +36,6 @@
   (list (+ low (quotient (* partial-sum interval) total-sum))
         (sub1 (+ low (quotient (* (+ (list-ref counts index) partial-sum) interval) total-sum)))))
 
-(define (output-bit+storage bit storage bit-writer)
-  (send bit-writer write-bit bit)
-  (for ([i storage]) (send bit-writer write-bit (^ 1 bit))))
-
 (define (first-shift low high)
   (list (& (<< low 1) 11..1)
         (& (|| (<< high 1) 1) 11..1)))
@@ -49,6 +45,10 @@
         (& (|| (<< high 1) (add1 10..0)) 11..1)))
   
 ;-------------------------------------------------------------------------
+
+(define (output-bit+storage bit storage bit-writer)
+  (send bit-writer write-bit bit)
+  (for ([i storage]) (send bit-writer write-bit (^ 1 bit))))
 
 (define (encode-symbol interval storage bit-writer)
   (define low (car interval))
@@ -63,22 +63,22 @@
 
 (define (arithmetic-encode file [counts (make-list SIZE 1)])
   (define in (open-input-file file))
-  (define bit-writer (new bit-writer% [path output-file]))
+  (define bit-writer (new bit-writer% [path encoded-file]))
   (let loop ([low 0] [high 11..1] [storage 0])
     (define input (read-byte in))
     (cond
       [(eof-object? input)
        (encode-symbol (get-interval (sub1 SIZE) counts low high) storage bit-writer)
-       (send bit-writer write-bits low 32)
-       (send bit-writer write-bits 7 0)]
+       (output-bit+storage (if (< low (<< 10..0 (- 1))) 0 1) (+ 1 storage) bit-writer)
+       (send bit-writer write-bits 0 (+ nr-bits 5))]
       [else
-       (define lh (encode-symbol (get-interval input counts low high) storage bit-writer))
-       (loop (caar lh) (cadar lh) (cadr lh))]))
+       (define params (encode-symbol (get-interval input counts low high) storage bit-writer))
+       (loop (caar params) (cadar params) (cadr params))]))
   (close-input-port in)
   (send bit-writer close-file))
 
 ;-------------------------------------------------------------------------
 
-(time (arithmetic-encode input-file (get-frequencies input-file)))
-(file-size input-file)
-(file-size output-file)
+(time (arithmetic-encode original-file (get-frequencies original-file)))
+(printf "~a bytes -> ~a bytes\n" (file-size original-file) (file-size encoded-file))
+(printf "Compression Ratio: ~a" (exact->inexact (/ (file-size original-file) (file-size encoded-file))))
