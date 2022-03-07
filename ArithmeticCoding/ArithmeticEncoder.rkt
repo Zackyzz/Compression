@@ -1,8 +1,8 @@
 #lang racket
 (require "../helpers/bitwr.rkt" racket/format)
 
-(define input-file "test.txt")
-(define output-file "output.txt")
+(define input-file "testw.txt")
+(define output-file "encodedw.txt")
 
 (define << arithmetic-shift)
 (define || bitwise-ior)
@@ -13,7 +13,6 @@
 (define nr-bits 32)
 (define 11..1 (- (<< 1 nr-bits) 1))
 (define 10..0 (<< 1 (- nr-bits 1)))
-(define 01..0 (<< 1 (- nr-bits 2)))
 
 (define (binarize val [len 32]) (~r val #:base 2 #:min-width len #:pad-string "0"))
 
@@ -33,7 +32,7 @@
 (define (get-interval index counts low high)
   (define partial-sum (apply + (take counts index)))
   (define total-sum (apply + counts))
-  (define interval (+ (- high low) 1))
+  (define interval (add1 (- high low)))
   (list (+ low (quotient (* partial-sum interval) total-sum))
         (sub1 (+ low (quotient (* (+ (list-ref counts index) partial-sum) interval) total-sum)))))
 
@@ -65,20 +64,18 @@
 (define (arithmetic-encode file [counts (make-list SIZE 1)])
   (define in (open-input-file file))
   (define bit-writer (new bit-writer% [path output-file]))
-  (define final-low
-    (let loop ([low 0] [high 11..1] [storage 0])
-      (define input (read-byte in))
-      (cond
-        [(eof-object? input)
-         (encode-symbol (get-interval (sub1 SIZE) counts low high) storage bit-writer)
-         (send bit-writer write-bits low 32)
-         (send bit-writer write-bits 7 0) low]
-        [else
-         (define lh (encode-symbol (get-interval input counts low high) storage bit-writer))
-         (loop (caar lh) (cadar lh) (cadr lh))])))
+  (let loop ([low 0] [high 11..1] [storage 0])
+    (define input (read-byte in))
+    (cond
+      [(eof-object? input)
+       (encode-symbol (get-interval (sub1 SIZE) counts low high) storage bit-writer)
+       (send bit-writer write-bits low 32)
+       (send bit-writer write-bits 7 0)]
+      [else
+       (define lh (encode-symbol (get-interval input counts low high) storage bit-writer))
+       (loop (caar lh) (cadar lh) (cadr lh))]))
   (close-input-port in)
-  (send bit-writer close-file)
-  final-low)
+  (send bit-writer close-file))
 
 ;-------------------------------------------------------------------------
 
