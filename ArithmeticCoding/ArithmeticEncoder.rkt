@@ -70,7 +70,7 @@
       [(eof-object? input)
        (encode-symbol (get-interval (sub1 SIZE) counts low high) storage bit-writer)
        (output-bit+storage (if (< low (<< 10..0 (- 1))) 0 1) (+ 1 storage) bit-writer)
-       (send bit-writer write-bits 0 (+ nr-bits 5))]
+       (send bit-writer write-bits 0 (- nr-bits 2))]
       [else
        (define params (encode-symbol (get-interval input counts low high) storage bit-writer))
        (loop (caar params) (cadar params) (cadr params))]))

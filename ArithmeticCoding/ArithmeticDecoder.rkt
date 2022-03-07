@@ -45,35 +45,42 @@
   
 ;-------------------------------------------------------------------------
 
+(define (get-symbol low high value counts)
+  (define count (quotient (sub1 (* (add1 (- value low)) (apply + counts)))
+                          (add1 (- high low))))
+  (let loop ([index 1])
+    (cond
+      [(> (apply + (take counts index)) count) (sub1 index)]
+      [else (loop (add1 index))])))
+
+(define (prepare-symbol interval value bit-reader)
+  (define low (car interval))
+  (define high (cadr interval))
+  (cond
+    [(= 0 (<< (^ low high) (- 1 nr-bits)))
+     (prepare-symbol (first-shift low high)
+                     (& (|| (<< value 1) (send bit-reader read-bit)) 11..1)
+                     bit-reader)]
+    [(and (= #b01 (<< low (- 2 nr-bits))) (= #b10 (<< high (- 2 nr-bits))))
+     (prepare-symbol (second-shift low high)
+                     (& (|| (& value 10..0)
+                            (& (<< value 1) (sub1 10..0))
+                            (send bit-reader read-bit)) 11..1)
+                     bit-reader)]
+    [else (list (list low high) value)]))
+
 (define (arithmetic-decode file [counts (make-list SIZE 1)])
   (define bit-reader (new bit-reader% [path encoded-file]))
   (define bit-writer (new bit-writer% [path decoded-file]))
   (let loop ([low 0] [high 11..1] [value (send bit-reader read-bits nr-bits)])
-    (define count (quotient
-                   (sub1 (* (add1 (- value low)) (apply + counts)))
-                   (add1 (- high low))))
-    (define symb
-      (let get-sym ([sym 1])
-        (cond
-          [(> (apply + (take counts sym)) count) (sub1 sym)]
-          [else (get-sym (add1 sym))])))
+    (define symbol (get-symbol low high value counts))
     (cond
-      [(= 256 symb) #t]
+      [(= (sub1 SIZE) symbol)
+       (printf "~a ~a\n" (send bit-reader get-counter) (* 8 (file-size encoded-file))) #t]
       [else
-       (send bit-writer write-bits symb 8)
-       (define interval (get-interval symb counts low high))
-       (let inner ([lh interval] [val value])
-         (define low (first lh))
-         (define high (second lh))
-         (cond
-           [(= 0 (<< (^ low high) (- 1 nr-bits)))
-            (inner (first-shift low high)
-                   (& (|| (<< val 1) (send bit-reader read-bit)) 11..1))]
-           [(and (= #b01 (<< low (- 2 nr-bits))) (= #b10 (<< high (- 2 nr-bits))))
-            (define bit (send bit-reader read-bit))
-            (inner (second-shift low high)
-                   (& (|| (& (<< val 1) (sub1 10..0)) (& val 10..0) bit) 11..1))]
-           [else (loop (first lh) (second lh) val)]))]))
+       (send bit-writer write-bits symbol 8)
+       (define params (prepare-symbol (get-interval symbol counts low high) value bit-reader))
+       (loop (caar params) (cadar params) (cadr params))]))
   (send bit-reader close-file)
   (send bit-writer close-file))
 
