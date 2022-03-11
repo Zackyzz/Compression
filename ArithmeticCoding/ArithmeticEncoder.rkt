@@ -2,15 +2,10 @@
 (require "../helpers/bitwr.rkt")
 (provide (all-defined-out))
 
-(define original-file "files/testw.txt")
-(define encoded-file "files/encoded.txt")
-
 (define SIZE 257)
 (define nr-bits 32)
 (define 11..1 (- (<< 1 nr-bits) 1))
 (define 10..0 (<< 1 (- nr-bits 1)))
-
-;-------------------------------------------------------------------------
 
 (define (get-frequencies file [len SIZE])
   (define in (open-input-file file))
@@ -26,7 +21,7 @@
        sums]
       [else (vector-set! counts input (add1 (vector-ref counts input))) (loop counts)])))
 
-(define (get-interval model index low high)
+(define (get-interval model index low high SIZE)
   (define total-sum (vector-ref model SIZE))
   (define interval (add1 (- high low)))
   (list (+ low (quotient (* (vector-ref model index) interval) total-sum))
@@ -57,24 +52,27 @@
      (process-symbol (second-shift low high) (+ 1 storage) bit-writer)]
     [else (list (list low high) storage)]))
 
-(define (arithmetic-encode input-file out-file [model (make-vector (add1 SIZE) 1)])
+(define (arithmetic-encode input-file output-file [SIZE SIZE] [model (make-vector (add1 SIZE) 1)])
   (define in (open-input-file input-file))
-  (define bit-writer (new bit-writer% [path out-file]))
+  (define bit-writer (new bit-writer% [path output-file]))
   (let loop ([low 0] [high 11..1] [storage 0])
     (define input (read-byte in))
     (cond
       [(eof-object? input)
-       (define temp (process-symbol (get-interval model (sub1 SIZE) low high) storage bit-writer))
+       (define temp (process-symbol (get-interval model (sub1 SIZE) low high SIZE) storage bit-writer))
        (output-bit+storage (if (< (caar temp) (<< 10..0 (- 1))) 0 1) (+ 1 (cadr temp)) bit-writer)
        (send bit-writer write-bits 0 (- nr-bits 2))]
       [else
-       (define temp (process-symbol (get-interval model input low high) storage bit-writer))
+       (define temp (process-symbol (get-interval model input low high SIZE) storage bit-writer))
        (loop (caar temp) (cadar temp) (cadr temp))]))
   (close-input-port in)
   (send bit-writer close-file))
 
 ;-------------------------------------------------------------------------
 
-(time (arithmetic-encode original-file encoded-file (get-frequencies original-file)))
+(define original-file "files/testw.txt")
+(define encoded-file "files/encoded.txt")
+
+(time (arithmetic-encode original-file encoded-file SIZE (get-frequencies original-file)))
 (printf "~a bytes -> ~a bytes\n" (file-size original-file) (file-size encoded-file))
 (printf "Compression Ratio: ~a" (exact->inexact (/ (file-size original-file) (file-size encoded-file))))
