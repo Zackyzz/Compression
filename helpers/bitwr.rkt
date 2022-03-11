@@ -1,8 +1,13 @@
 #lang racket
-(provide bit-reader% bit-writer%)
+(require racket/format)
+(provide (all-defined-out))
 
 (define << arithmetic-shift)
+(define || bitwise-ior)
 (define & bitwise-and)
+(define ^ bitwise-xor)
+
+(define (binarize val [len 32]) (~r val #:base 2 #:min-width len #:pad-string "0"))
 
 (define bit-reader%
   (class object%

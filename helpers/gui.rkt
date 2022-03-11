@@ -1,9 +1,5 @@
 #lang racket/gui
-(require racket/format)
 (require "bitwr.rkt")
-
-(define (binarize val [len 8])
-  (~r val #:base 2 #:min-width len #:pad-string "0"))
 
 (define br #f)
 (define bw #f)

@@ -5,11 +5,6 @@
 (define encoded-file "files/encoded.txt")
 (define decoded-file "files/decoded.txt")
 
-(define << arithmetic-shift)
-(define || bitwise-ior)
-(define & bitwise-and)
-(define ^ bitwise-xor)
-
 (define SIZE 257)
 (define nr-bits 32)
 (define 11..1 (- (<< 1 nr-bits) 1))
@@ -25,6 +20,12 @@
 (define (update-model model index)
   (for ([i (in-range (add1 index) (add1 SIZE))])
     (vector-set! model i (add1 (vector-ref model i))))
+  (when (>= (vector-ref model SIZE) (<< 11..1 (- 2)))
+    (define temp
+      (for/vector ([i SIZE])
+        (quotient (add1 (- (vector-ref model (add1 i)) (vector-ref model i))) 2)))
+    (for ([i (in-range 1 (add1 SIZE))])
+      (vector-set! model i (+ (vector-ref model (sub1 i)) (vector-ref temp (sub1 i))))))
   model)
 
 (define (first-shift low high)

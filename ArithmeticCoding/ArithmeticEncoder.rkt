@@ -1,13 +1,9 @@
 #lang racket
 (require "../helpers/bitwr.rkt")
+(provide (all-defined-out))
 
 (define original-file "files/testw.txt")
 (define encoded-file "files/encoded.txt")
-
-(define << arithmetic-shift)
-(define || bitwise-ior)
-(define & bitwise-and)
-(define ^ bitwise-xor)
 
 (define SIZE 257)
 (define nr-bits 32)
@@ -61,9 +57,9 @@
      (process-symbol (second-shift low high) (+ 1 storage) bit-writer)]
     [else (list (list low high) storage)]))
 
-(define (arithmetic-encode file [model (make-vector (add1 SIZE) 1)])
-  (define in (open-input-file file))
-  (define bit-writer (new bit-writer% [path encoded-file]))
+(define (arithmetic-encode input-file out-file [model (make-vector (add1 SIZE) 1)])
+  (define in (open-input-file input-file))
+  (define bit-writer (new bit-writer% [path out-file]))
   (let loop ([low 0] [high 11..1] [storage 0])
     (define input (read-byte in))
     (cond
@@ -79,6 +75,6 @@
 
 ;-------------------------------------------------------------------------
 
-(time (arithmetic-encode original-file (get-frequencies original-file)))
+(time (arithmetic-encode original-file encoded-file (get-frequencies original-file)))
 (printf "~a bytes -> ~a bytes\n" (file-size original-file) (file-size encoded-file))
 (printf "Compression Ratio: ~a" (exact->inexact (/ (file-size original-file) (file-size encoded-file))))

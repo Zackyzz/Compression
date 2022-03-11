@@ -5,11 +5,6 @@
 (define encoded-file "files/encoded.txt")
 (define decoded-file "files/decoded.txt")
 
-(define << arithmetic-shift)
-(define || bitwise-ior)
-(define & bitwise-and)
-(define ^ bitwise-xor)
-
 (define SIZE 257)
 (define nr-bits 32)
 (define 11..1 (- (<< 1 nr-bits) 1))
