@@ -1,28 +1,31 @@
 #lang racket
 (require "../helpers/bitwr.rkt")
-(provide (all-defined-out))
+(provide arithmetic-encode)
 
 (define SIZE 257)
 (define nr-bits 32)
 (define 11..1 (- (<< 1 nr-bits) 1))
 (define 10..0 (<< 1 (- nr-bits 1)))
 
-(define (get-interval model index low high size)
-  (define total-sum (vector-ref model size))
+(define (get-frequencies file [len SIZE])
+  (define in (open-input-file file))
+  (define sums (make-vector (add1 len) 0))
+  (let loop ([counts (make-vector len 0)])
+    (define input (read-byte in))
+    (cond
+      [(eof-object? input)
+       (vector-set! counts (sub1 len) 1)
+       (close-input-port in)
+       (for ([i (in-range 1 (add1 len))])
+         (vector-set! sums i (+ (vector-ref counts (sub1 i)) (vector-ref sums (sub1 i)))))
+       sums]
+      [else (vector-set! counts input (add1 (vector-ref counts input))) (loop counts)])))
+
+(define (get-interval model index low high SIZE)
+  (define total-sum (vector-ref model SIZE))
   (define interval (add1 (- high low)))
   (list (+ low (quotient (* (vector-ref model index) interval) total-sum))
         (sub1 (+ low (quotient (* (vector-ref model (add1 index)) interval) total-sum)))))
-
-(define (update-model model index size)
-  (for ([i (in-range (add1 index) (add1 size))])
-    (vector-set! model i (add1 (vector-ref model i))))
-  (when (>= (vector-ref model size) (<< 11..1 (- 2)))
-    (define temp
-      (for/vector ([i size])
-        (quotient (add1 (- (vector-ref model (add1 i)) (vector-ref model i))) 2)))
-    (for ([i (in-range 1 (add1 size))])
-      (vector-set! model i (+ (vector-ref model (sub1 i)) (vector-ref temp (sub1 i))))))
-  model)
 
 (define (first-shift low high)
   (list (& (<< low 1) 11..1)
@@ -49,27 +52,29 @@
      (process-symbol (second-shift low high) (+ 1 storage) bit-writer)]
     [else (list (list low high) storage)]))
 
-(define (arithmetic-encode input-file output-file [size SIZE] [model (build-vector (add1 size) values)])
+(define (arithmetic-encode input-file output-file size [original-file input-file])
+  (define model (get-frequencies original-file))
   (define in (open-input-file input-file))
   (define bit-writer (new bit-writer% [path output-file]))
-  (let loop ([low 0] [high 11..1] [storage 0] [model model])
+  (let loop ([low 0] [high 11..1] [storage 0])
     (define input (read-byte in))
     (cond
       [(eof-object? input)
-       (define temp (process-symbol (get-interval model (sub1 size) low high size) storage bit-writer))
+       (define temp (process-symbol (get-interval model (sub1 SIZE) low high SIZE) storage bit-writer))
        (output-bit+storage (if (< (caar temp) (<< 10..0 (- 1))) 0 1) (+ 1 (cadr temp)) bit-writer)
        (send bit-writer write-bits 0 (- nr-bits 2))]
       [else
-       (define temp (process-symbol (get-interval model input low high size) storage bit-writer))
-       (loop (caar temp) (cadar temp) (cadr temp) (update-model model input size))]))
+       (define temp (process-symbol (get-interval model input low high SIZE) storage bit-writer))
+       (loop (caar temp) (cadar temp) (cadr temp))]))
   (close-input-port in)
   (send bit-writer close-file))
 
 ;-------------------------------------------------------------------------
 
-(define original-file "files/testw.txt")
-(define encoded-file "files/encoded.txt")
+(define (main)
+  (define original-file "files/testw.txt")
+  (define encoded-file "files/encoded.txt")
 
-(time (arithmetic-encode original-file encoded-file SIZE))
-(printf "~a bytes -> ~a bytes\n" (file-size original-file) (file-size encoded-file))
-(printf "Compression Ratio: ~a" (exact->inexact (/ (file-size original-file) (file-size encoded-file))))
+  (time (arithmetic-encode original-file encoded-file SIZE))
+  (printf "~a bytes -> ~a bytes\n" (file-size original-file) (file-size encoded-file))
+  (printf "Compression Ratio: ~a" (exact->inexact (/ (file-size original-file) (file-size encoded-file)))))
