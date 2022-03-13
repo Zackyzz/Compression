@@ -27,7 +27,7 @@
       (<< (& buffer (<< 1 (- 7 actual-counter))) (- actual-counter 7)))
     (define/public (read-bits n)
       (for/fold ([result 0]) ([i n])
-        (bitwise-ior (<< result 1) (read-bit))))))
+        (|| (<< result 1) (read-bit))))))
 
 (define bit-writer%
   (class object%
@@ -40,7 +40,7 @@
     (define/public (get-counter) counter)
     (define/public (get-buffer) buffer)
     (define/public (write-bit bit)
-      (set! buffer (bitwise-ior (<< buffer 1) bit))
+      (set! buffer (|| (<< buffer 1) bit))
       (set! counter (add1 counter))
       (when (= 0 (remainder counter 8))
         (write-byte buffer file)
