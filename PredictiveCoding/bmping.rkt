@@ -1,56 +1,89 @@
 #lang racket/gui
+(require plot)
 
-(define bm (make-bitmap 256 256))
-
-(define dc (send bm make-dc))
-(send dc set-background (make-object color% 0 0 0))
-(send dc clear)
-
-(define buffer (make-bytes (* 256 256 4)))
-(send dc get-argb-pixels 0 0 255 255 buffer)
-
-#|
-(define aquamarine (make-color 100 255 100))
-(for ([i 255])
-  (send dc set-pixel i i aquamarine))
-|#
+(define SIZE 256)
 
 (define frame
   (new frame%
        [label "BMP"]
-       [x 300] [y 100]
-       [width 600] [height 600]))
+       [x 500] [y 250]
+       [width 600] [height 500]))
 
-(define hp
+(define main-panel
   (new horizontal-panel%
        [parent frame]))
 
-(define encode-panel
-  (new vertical-panel%
-       [parent hp]))
+(send frame show #t)
 
-(define canvas
+;--------------------------ENCODE--------------------------
+
+(define input-panel
+  (new vertical-panel%
+       [parent main-panel]))
+
+(define input-bitmap (make-bitmap SIZE SIZE))
+(define input-dc (send input-bitmap make-dc))
+(send input-dc set-background (make-color 0 0 0))
+(send input-dc clear)
+
+(define input-canvas
   (new canvas%
-       [parent encode-panel]
+       [parent input-panel]
        [paint-callback
         (λ (canvas dc)
-          (send dc draw-bitmap bm 0 0))]))
+          (send dc draw-bitmap input-bitmap 20 20))]))
 
+(define input-buffer (make-bytes (* SIZE SIZE 4)))
 (define load-button
   (new button%
-       [parent encode-panel]
+       [parent input-panel]
        [label "Load file"]
        [callback
         (λ (button event)
           (define path (get-file))
           (when path
-            (set! bm (read-bitmap path))
-            (send canvas on-paint)))]))
+            (set! input-bitmap (read-bitmap path))
+            (send input-canvas on-paint)
+            (send input-bitmap get-argb-pixels 0 0 SIZE SIZE input-buffer)))]))
 
-(send frame show #t)
+;--------------------------Functions--------------------------
 
-(define gray-pixels
-  (time (for/vector ([i (in-range 1 (* 256 256 4) 4)])
-          (bytes-ref buffer i))))
+(define (get-pixels buffer)
+  (for/list ([i (in-range 1 (* SIZE SIZE 4) 4)])
+    (bytes-ref buffer i)))
 
-(vector-length gray-pixels)
+;--------------------------HISTOGRAM--------------------------
+
+(define (get-frequency buffer)
+  (let ((red-pixels
+         (for/list ([i (in-range 1 (* SIZE SIZE 4) 4)])
+           (bytes-ref buffer i))))
+    (map list
+         (build-list SIZE values)
+         (for/list ([i SIZE])
+           (count (λ(x) (= i x)) red-pixels)))))
+
+(define (plot-histogram pixels dc)
+  (plot/dc (discrete-histogram pixels
+                               #:y-max 1000 #:add-ticks? #f)
+           dc 20 20 SIZE SIZE))
+
+(define histogram-panel
+  (new vertical-panel%
+       [parent main-panel]))
+  
+(define histogram-canvas
+  (new canvas%
+       [parent histogram-panel]
+       [paint-callback
+        (λ(canvas dc)
+          (plot-histogram (get-frequency input-buffer) dc))]))
+
+(define refresh-button
+  (new button%
+       [parent histogram-panel]
+       [label "Refresh"]
+       [callback
+        (λ (button event)
+          (plot-histogram (get-frequency input-buffer)
+                          (send histogram-canvas get-dc)))]))
