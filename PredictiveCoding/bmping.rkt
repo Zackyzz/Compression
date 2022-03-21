@@ -1,5 +1,5 @@
 #lang racket/gui
-(require plot)
+(require plot math/matrix)
 
 (define SIZE 256)
 
@@ -46,12 +46,6 @@
             (send input-canvas on-paint)
             (send input-bitmap get-argb-pixels 0 0 SIZE SIZE input-buffer)))]))
 
-;--------------------------Functions--------------------------
-
-(define (get-pixels buffer)
-  (for/list ([i (in-range 1 (* SIZE SIZE 4) 4)])
-    (bytes-ref buffer i)))
-
 ;--------------------------HISTOGRAM--------------------------
 
 (define (get-frequency buffer)
@@ -87,3 +81,31 @@
         (λ (button event)
           (plot-histogram (get-frequency input-buffer)
                           (send histogram-canvas get-dc)))]))
+
+;--------------------------Functions--------------------------
+
+(define (get-matrix buffer)
+  (for/vector ([i SIZE])
+    (for/vector ([j (in-range (add1 (* i 4 SIZE)) (add1 (* (add1 i) 4 SIZE)) 4)])
+      (bytes-ref buffer j))))
+
+(define (matrix-get matrix i j)
+  (vector-ref (vector-ref matrix i) j))
+
+(define (matrix-set matrix i j val)
+  (vector-set! (vector-ref matrix i) j val))
+
+#|
+(require "../helpers/bitwr.rkt")
+
+(define br (new bit-reader% [path "Peppers.bmp"]))
+
+(define header
+  (for/list ([i 1078])
+    (send br read-bits 8)))
+
+(define pixels
+  (for/list ([i (* 256 256)])
+    (send br read-bits 8)))
+
+(take pixels 256)|#
