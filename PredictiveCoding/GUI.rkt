@@ -1,11 +1,12 @@
 #lang racket/gui
-(require plot "../helpers/bitwr.rkt" "NearLossless.rkt")
+(require plot "../helpers/bitwr.rkt" "NearLossless.rkt"
+         "../ArithmeticCoding/AAE.rkt"  "../ArithmeticCoding/AAD.rkt")
 
 (define frame
   (new frame%
-       [label "BMP"]
+       [label "Near-Lossless Predictive Coding"]
        [x 0] [y 250]
-       [width 1800] [height 500]))
+       [width 1900] [height 500]))
 
 (send frame show #t)
 
@@ -13,7 +14,7 @@
   (new horizontal-panel%
        [parent frame]))
 
-;------------------------------------ENCODE------------------------------------
+;------------------------------------ENCODE PANEL------------------------------------
 
 (define input-panel
   (new vertical-panel%
@@ -61,22 +62,6 @@
           (set! matrices (send coder get-matrices))
           (set! quantized-values (flatten-matrix (vector-ref matrices 2))))]))
 
-(define writer #f)
-(define quantized-values #f)
-(define save-button
-  (new button%
-       [parent input-panel]
-       [label "Save"]
-       [callback
-        (λ (button event)
-          (when quantized-values
-            (set! writer (new bit-writer% [path "test.nl"]))
-            (send writer write-bits (send predictors get-selection) 4)
-            (send writer write-bits (send k get-value) 4)
-            (send writer write-bits (send save-modes get-selection) 2)
-            (for ([i quantized-values]) (send writer write-bits (+ 255 i) 9))
-            (send writer close-file)))]))
-
 (define predictors
   (new choice%
        [parent input-panel]
@@ -92,13 +77,23 @@
        [max-value 10]
        [init-value 2]))
 
-(define save-modes
-  (new choice%
+(define writer #f)
+(define quantized-values #f)
+(define save-fixed
+  (new button%
        [parent input-panel]
-       [label ""]
-       [choices (list "Fixed" "Table" "Arithmetic")]))
+       [label "Save Fixed"]
+       [callback
+        (λ (button event)
+          (when quantized-values
+            (set! writer (new bit-writer% [path "saved/test.bmp.fixed.nl"]))
+            (send writer write-bits (send predictors get-selection) 4)
+            (send writer write-bits (send k get-value) 4)
+            (send writer write-bits 0 2)
+            (for ([i quantized-values]) (send writer write-bits (+ 255 i) 9))
+            (send writer close-file)))]))
 
-;------------------------------------HISTOGRAM------------------------------------
+;------------------------------------HISTOGRAM PANEL------------------------------------
 
 (define histogram-panel
   (new vertical-panel%
@@ -106,7 +101,7 @@
 
 (define (plot-histogram pixels dc)
   (plot/dc (discrete-histogram pixels #:y-max 100 #:add-ticks? #f #:gap 0)
-           dc 50 20 (* 2 SIZE) SIZE #:x-label "0" #:y-label #f))
+           dc 0 20 (* 2 SIZE) SIZE #:x-label "0" #:y-label #f))
 
 (define show-plot #f)
 (define histogram-canvas%
@@ -128,15 +123,14 @@
   (new histogram-canvas%
        [parent histogram-panel]
        [min-width (* 2 SIZE)]
-       [min-height SIZE]
        [paint-callback
         (λ(canvas dc)
           (plot-histogram (get-histogram original-matrix) dc))]))
 
-(define refresh-button
+(define refresh-histogram
   (new button%
        [parent histogram-panel]
-       [label "Refresh"]
+       [label "Refresh Histogram"]
        [callback
         (λ (button event)
           (when matrices
@@ -158,7 +152,7 @@
        [label ""]
        [init-value "0.1"]))
 
-;------------------------------------ERROR------------------------------------
+;------------------------------------ERROR PANEL------------------------------------
 
 (define error-panel
   (new vertical-panel%
@@ -176,21 +170,40 @@
         (λ (canvas dc)
           (send dc draw-bitmap error-bitmap 20 20))]))
 
-(define q-button
+(define refresh-error-image
   (new button%
        [parent error-panel]
-       [label "Q"]
+       [label "Refresh Error Image"]
        [callback
         (λ (button event)
-          (send error-bitmap set-argb-pixels 0 0 SIZE SIZE (makemake-bytes original-matrix))
+          (send error-bitmap set-argb-pixels 0 0 SIZE SIZE
+                (matrix->bytes (vector-ref matrices (add1 (send error-choices get-selection)))
+                               (string->number (send error-scale get-value))))
           (send error-canvas on-paint))]))
 
-(define (makemake-bytes matrix)
+(define (error-pixel pixel scale)
+  (define (normalize pixel)
+    (define x (+ 128 (* pixel scale)))
+    (exact-floor (cond [(< x 0) 0] [(> x 255) 255] [else x])))
+  (list 255 (normalize pixel) (normalize pixel) (normalize pixel)))
+
+(define (matrix->bytes matrix scale)
   (list->bytes
-   (apply append (map (λ(x) (list 255 x x x))
-                      (vector->list (flatten-matrix original-matrix))))))
+   (apply append (map (curryr error-pixel scale) (vector->list (flatten-matrix matrix))))))
+
+(define error-choices
+  (new radio-box%
+       [parent error-panel]
+       [label ""]
+       [choices (list "Error prediction" "Q Error prediction")]))
+
+(define error-scale
+  (new text-field%
+       [parent error-panel]
+       [label ""]
+       [init-value "7.5"]))
           
-;------------------------------------DECODE------------------------------------
+;------------------------------------DECODE PANEL------------------------------------
 
 (define decode-panel
   (new vertical-panel%
