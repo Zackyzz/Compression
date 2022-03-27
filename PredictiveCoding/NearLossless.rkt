@@ -19,6 +19,9 @@
     [(<= C min-AB) max-AB]
     [else (A+B-C A B C)]))
 
+(define (string->procedure str)
+  (eval (string->symbol str) (variable-reference->namespace (#%variable-reference))))
+
 (define coder%
   (class object%
     (super-new)
@@ -69,6 +72,53 @@
           (matrix-set ep/Q i j (quantize error))
           (matrix-set decoded i j (normalize (+ prediction (dequantize (quantize error))))))))))
 
+(define decoder%
+  (class object%
+    (super-new)
+    (init compressed-matrix)
+    (init size)
+    (init range)
+    (init k)
+    (init predictor)
+    
+    (define (matrix-get matrix i j)
+      (vector-ref (vector-ref matrix i) j))
+    (define (matrix-set matrix i j val)
+      (vector-set! (vector-ref matrix i) j val))
+    
+    (define ep/Q compressed-matrix)
+    (define epd (for/vector ([i size]) (make-vector size)))
+    (define decoded (for/vector ([i size]) (make-vector size)))
+
+    (define/public (get-matrices)
+      (predict)
+      (vector epd ep/Q decoded))
+    
+    (define (normalize x)
+      (cond
+        [(< x 0) 0]
+        [(> x range) range]
+        [else x]))
+    
+    (define (dequantize x) (* x (add1 (* 2 k))))
+    
+    (define (get-pred i j)
+      (cond
+        [(= i j 0) (add1 (quotient range 2))]
+        [(= i 0) (matrix-get decoded i (sub1 j))]
+        [(= j 0) (matrix-get decoded (sub1 i) j)]
+        [else
+         (normalize (predictor (matrix-get decoded i (sub1 j))
+                               (matrix-get decoded (sub1 i) j)
+                               (matrix-get decoded (sub1 i) (sub1 j))))]))
+    (define (predict)
+      (for ([i size])
+        (for ([j size])
+          (define prediction (get-pred i j))
+          (define dq-error (dequantize (matrix-get ep/Q i j)))
+          (matrix-set epd i j dq-error)
+          (matrix-set decoded i j (normalize (+ prediction dq-error))))))))
+
 ;-----------------------------------------FUNCTIONS----------------------------------------
 
 (define (get-matrix buffer)
@@ -76,12 +126,14 @@
     (for/vector ([j (in-range (add1 (* i 4 SIZE)) (add1 (* (add1 i) 4 SIZE)) 4)])
       (bytes-ref buffer j))))
 
+(define (flatten-matrix matrix)
+  (apply vector-append (vector->list matrix)))
+
 (define (get-histogram matrix [scaling-factor 1])
   (define (vector-increment vec i)
     (vector-set! vec i (add1 (vector-ref vec i))))
-  (define flattened (apply vector-append (vector->list matrix)))
   (define temp (make-vector 511))
-  (for ([i flattened])
+  (for ([i (flatten-matrix matrix)])
     (vector-increment temp (+ 255 i)))
   (vector-map vector
               (for/vector ([i (in-range (- 255) 256)]) i)
@@ -93,9 +145,20 @@
           (vector 15 15 15 0)
           (vector 1 4 14 14)))
 
-(define tester (new coder%
-                    [original-matrix original]
-                    [size 4] [range 15] [k 2]
-                    [predictor A+B-C]))
+(define coder (new coder%
+                   [original-matrix original]
+                   [size 4] [range 15] [k 2]
+                   [predictor A+B-C]))
 
-(send tester get-matrices)|#
+(define matrices (send coder get-matrices))
+(printf "Coder:\n")
+matrices
+
+(define quantized-matrix (vector-ref matrices 2))
+
+(define decoder (new decoder%
+                     [compressed-matrix quantized-matrix]
+                     [size 4] [range 15] [k 2]
+                     [predictor A+B-C]))
+(printf "Decoder:\n")
+(send decoder get-matrices)|#
