@@ -42,7 +42,7 @@
     (define decoded (for/vector ([i size]) (make-vector size)))
 
     (define/public (get-matrices)
-      (predict)
+      (process-matrices)
       (vector original ep ep/Q decoded))
     
     (define (normalize x)
@@ -60,17 +60,19 @@
         [(= i 0) (matrix-get decoded i (sub1 j))]
         [(= j 0) (matrix-get decoded (sub1 i) j)]
         [else
-         (normalize (predictor (matrix-get decoded i (sub1 j))
-                               (matrix-get decoded (sub1 i) j)
-                               (matrix-get decoded (sub1 i) (sub1 j))))]))
-    (define (predict)
+         (predictor (matrix-get decoded i (sub1 j))
+                    (matrix-get decoded (sub1 i) j)
+                    (matrix-get decoded (sub1 i) (sub1 j)))]))
+    
+    (define (process-matrices)
       (for ([i size])
         (for ([j size])
-          (define prediction (get-pred i j))
+          (define prediction (normalize (get-pred i j)))
           (define error (- (matrix-get original i j) prediction))
+          (define error/Q (quantize error))
           (matrix-set ep i j error)
-          (matrix-set ep/Q i j (quantize error))
-          (matrix-set decoded i j (normalize (+ prediction (dequantize (quantize error))))))))))
+          (matrix-set ep/Q i j error/Q)
+          (matrix-set decoded i j (normalize (+ prediction (dequantize error/Q)))))))))
 
 (define decoder%
   (class object%
@@ -91,7 +93,7 @@
     (define decoded (for/vector ([i size]) (make-vector size)))
 
     (define/public (get-matrices)
-      (predict)
+      (process-matrices)
       (vector epd ep/Q decoded))
     
     (define (normalize x)
@@ -108,13 +110,14 @@
         [(= i 0) (matrix-get decoded i (sub1 j))]
         [(= j 0) (matrix-get decoded (sub1 i) j)]
         [else
-         (normalize (predictor (matrix-get decoded i (sub1 j))
-                               (matrix-get decoded (sub1 i) j)
-                               (matrix-get decoded (sub1 i) (sub1 j))))]))
-    (define (predict)
+         (predictor (matrix-get decoded i (sub1 j))
+                    (matrix-get decoded (sub1 i) j)
+                    (matrix-get decoded (sub1 i) (sub1 j)))]))
+    
+    (define (process-matrices)
       (for ([i size])
         (for ([j size])
-          (define prediction (get-pred i j))
+          (define prediction (normalize (get-pred i j)))
           (define dq-error (dequantize (matrix-get ep/Q i j)))
           (matrix-set epd i j dq-error)
           (matrix-set decoded i j (normalize (+ prediction dq-error))))))))

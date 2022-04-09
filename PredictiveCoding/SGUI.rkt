@@ -3,9 +3,9 @@
 
 (define frame
   (new frame%
-       [label "Near-Lossless Predictive Coding"]
-       [x 250] [y 250]
-       [width 1500] [height 500]))
+       [label "BMP"]
+       [x 0] [y 250]
+       [width 1900] [height 500]))
 
 (send frame show #t)
 
@@ -27,12 +27,10 @@
 (define input-canvas
   (new canvas%
        [parent input-panel]
-       [min-width SIZE]
        [paint-callback
         (λ (canvas dc)
           (send dc draw-bitmap input-bitmap 20 20))]))
 
-(define image-name #f)
 (define input-buffer (make-bytes (* SIZE SIZE 4)))
 (define original-matrix (get-matrix input-buffer))
 (define load-button
@@ -43,7 +41,6 @@
         (λ (button event)
           (define path (get-file))
           (when path
-            (set! image-name (last (string-split (path->string path) "\\")))
             (set! input-bitmap (read-bitmap path))
             (send input-canvas on-paint)
             (send input-bitmap get-argb-pixels 0 0 SIZE SIZE input-buffer)
@@ -64,6 +61,22 @@
           (set! matrices (send coder get-matrices))
           (set! quantized-values (flatten-matrix (vector-ref matrices 2))))]))
 
+(define writer #f)
+(define quantized-values #f)
+(define save-button
+  (new button%
+       [parent input-panel]
+       [label "Save"]
+       [callback
+        (λ (button event)
+          (when quantized-values
+            (set! writer (new bit-writer% [path "test.nl"]))
+            (send writer write-bits (send predictors get-selection) 4)
+            (send writer write-bits (send k get-value) 4)
+            (send writer write-bits (send save-modes get-selection) 2)
+            (for ([i quantized-values]) (send writer write-bits (+ 255 i) 9))
+            (send writer close-file)))]))
+
 (define predictors
   (new choice%
        [parent input-panel]
@@ -76,24 +89,14 @@
        [parent input-panel]
        [label "k"]
        [min-value 0]
-       [max-value 15]
+       [max-value 10]
        [init-value 2]))
 
-(define writer #f)
-(define quantized-values #f)
-(define save-fixed
-  (new button%
+(define save-modes
+  (new choice%
        [parent input-panel]
-       [label "Save Fixed"]
-       [callback
-        (λ (button event)
-          (when quantized-values
-            (set! writer (new bit-writer% [path "saved/test.bmp.fixed.nl"]))
-            (send writer write-bits (send predictors get-selection) 4)
-            (send writer write-bits (send k get-value) 4)
-            (send writer write-bits 0 2)
-            (for ([i quantized-values]) (send writer write-bits (+ 255 i) 9))
-            (send writer close-file)))]))
+       [label ""]
+       [choices (list "Fixed" "Table" "Arithmetic")]))
 
 ;------------------------------------HISTOGRAM PANEL------------------------------------
 
@@ -103,7 +106,7 @@
 
 (define (plot-histogram pixels dc)
   (plot/dc (discrete-histogram pixels #:y-max 100 #:add-ticks? #f #:gap 0)
-           dc 0 20 (* 2 SIZE) SIZE #:x-label "0" #:y-label #f))
+           dc 50 20 (* 2 SIZE) SIZE #:x-label "0" #:y-label #f))
 
 (define show-plot #f)
 (define histogram-canvas%
@@ -125,6 +128,7 @@
   (new histogram-canvas%
        [parent histogram-panel]
        [min-width (* 2 SIZE)]
+       [min-height SIZE]
        [paint-callback
         (λ(canvas dc)
           (plot-histogram (get-histogram original-matrix) dc))]))
@@ -152,14 +156,27 @@
   (new text-field%
        [parent histogram-panel]
        [label ""]
-       [horiz-margin 200]
        [init-value "0.1"]))
 
 ;------------------------------------ERROR PANEL------------------------------------
 
-(define error-panel
+(define temp-panel
   (new vertical-panel%
        [parent main-panel]))
+
+(define tab-panel
+  (new tab-panel%
+       [parent temp-panel]
+       [choices (list "Coder" "Decoder")]
+       [callback
+        (λ(tp e)
+          (case (send tp get-selection)
+            ((0) (send tp change-children (λ(children) (list error-panel))))
+            ((1) (send tp change-children (λ(children) (list error-paneld))))))]))
+
+(define error-panel
+  (new vertical-panel%
+       [parent tab-panel]))
 
 (define error-bitmap (make-bitmap SIZE SIZE))
 (define error-dc (send error-bitmap make-dc))
@@ -169,7 +186,6 @@
 (define error-canvas
   (new canvas%
        [parent error-panel]
-       [min-width SIZE]
        [paint-callback
         (λ (canvas dc)
           (send dc draw-bitmap error-bitmap 20 20))]))
@@ -180,19 +196,21 @@
        [label "Refresh Error Image"]
        [callback
         (λ (button event)
-          (when matrices
-            (send error-bitmap set-argb-pixels 0 0 SIZE SIZE
-                  (matrix->bytes (vector-ref matrices (add1 (send error-choices get-selection)))
-                                 (string->number (send error-scale get-value)))))
+          (send error-bitmap set-argb-pixels 0 0 SIZE SIZE
+                (makemake-bytes (vector-ref matrices (add1 (send error-choices get-selection)))))
           (send error-canvas on-paint))]))
 
 (define (error-pixel pixel scale)
-  (define (normalize pixel)
-    (define x (+ 128 (* pixel scale)))
-    (exact-floor (cond [(< x 0) 0] [(> x 255) 255] [else x])))
-  (list 255 (normalize pixel) (normalize pixel) (normalize pixel)))
+  (define (normalize x)
+    (exact-floor (cond
+                   [(< x 0) 0]
+                   [(> x 255) 255]
+                   [else x])))
+  (list 255 (normalize (+ 128 (* pixel scale)))
+        (normalize (+ 128 (* pixel scale))) (normalize (+ 128 (* pixel scale)))))
 
-(define (matrix->bytes matrix scale)
+(define (makemake-bytes matrix)
+  (define scale (string->number (send error-scale get-value)))
   (list->bytes
    (apply append (map (curryr error-pixel scale) (vector->list (flatten-matrix matrix))))))
 
@@ -206,7 +224,45 @@
   (new text-field%
        [parent error-panel]
        [label ""]
-       [horiz-margin 100]
+       [init-value "7.5"]))
+
+
+(define error-paneld
+  (new vertical-panel%
+       [parent tab-panel]))
+
+(define error-bitmapd (make-bitmap SIZE SIZE))
+(define error-dcd (send error-bitmapd make-dc))
+(send error-dcd set-background (make-color 0 0 0))
+(send error-dcd clear)
+
+(define error-canvasd
+  (new canvas%
+       [parent error-paneld]
+       [paint-callback
+        (λ (canvas dc)
+          (send dc draw-bitmap error-bitmapd 20 20))]))
+
+(define refresh-error-imaged
+  (new button%
+       [parent error-paneld]
+       [label "Refresh Error Image"]
+       [callback
+        (λ (button event)
+          (send error-bitmapd set-argb-pixels 0 0 SIZE SIZE
+                (makemake-bytes (vector-ref matrices (add1 (send error-choicesd get-selection)))))
+          (send error-canvasd on-paint))]))
+
+(define error-choicesd
+  (new radio-box%
+       [parent error-paneld]
+       [label ""]
+       [choices (list "Error prediction" "Q Error prediction")]))
+
+(define error-scaled
+  (new text-field%
+       [parent error-paneld]
+       [label ""]
        [init-value "7.5"]))
           
 ;------------------------------------DECODE PANEL------------------------------------
@@ -223,7 +279,6 @@
 (define decoder-canvas
   (new canvas%
        [parent decode-panel]
-       [min-width SIZE]
        [paint-callback
         (λ (canvas dc)
           (send dc draw-bitmap decode-bitmap 20 20))]))
