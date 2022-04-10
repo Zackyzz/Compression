@@ -5,7 +5,7 @@
   (new frame%
        [label "Near-Lossless Predictive Coding"]
        [x 250] [y 250]
-       [width 1450] [height 500]))
+       [width 1450] [height 525]))
 
 (send frame show #t)
 
@@ -77,6 +77,7 @@
   (new slider%
        [parent input-panel]
        [label "k"]
+       [horiz-margin 50]
        [min-value 0]
        [max-value 15]
        [init-value 2]))
@@ -97,6 +98,29 @@
             (send writer write-bits (send predictors get-selection) 4)
             (send writer write-bits 0 2)
             (for ([i quantized-values]) (send writer write-bits (+ 255 i) 9))
+            (send writer write-bits 0 7)
+            (send writer close-file)))]))
+
+(define save-table
+  (new button%
+       [parent input-panel]
+       [label "Save JPEG"]
+       [callback
+        (λ (button event)
+          (when quantized-values
+            (define save-name (string-append "utils/" image-name ".k" (number->string (send k get-value))
+                                             "p" (number->string (send predictors get-selection)) "T.nl"))
+            (set! writer (new bit-writer% [path save-name]))
+            (send writer write-bits (send k get-value) 4)
+            (send writer write-bits (send predictors get-selection) 4)
+            (send writer write-bits 1 2)
+            (for ([i quantized-values])
+              (cond
+                [(= i 0) (send writer write-bit 0)]
+                [else
+                 (define len (add1 (exact-floor (log (abs i) 2))))
+                 (send writer write-bits (- (expt 2 (add1 len)) 2) (add1 len))
+                 (send writer write-bits (if (positive? i) i (+ i (sub1 (expt 2 len)))) len)]))
             (send writer write-bits 0 7)
             (send writer close-file)))]))
 
@@ -260,6 +284,7 @@
 (define d/p #f)
 (define d/s #f)
 (define d/image-name #f)
+
 (define d/load-button
   (new button%
        [parent decode-panel]
@@ -280,12 +305,29 @@
                        (for/vector ([i SIZE])
                          (- (send d/reader read-bits 9) 255))))
                (send d/reader close-file)]
+              [(= 1 d/s)
+               (set! d/quantized-matrix
+                     (for/vector ([i SIZE])
+                       (for/vector ([i SIZE])
+                         (cond
+                           [(= 0 (send d/reader read-bit)) 0]
+                           [else
+                            (define len
+                              (let loop ([it 1])
+                                (if (= 0 (send d/reader read-bit))
+                                    it
+                                    (loop (add1 it)))))
+                            (define val (send d/reader read-bits len))
+                            (if (< val (expt 2 (sub1 len)))
+                                (- val (sub1 (expt 2 len)))
+                                val)]))))
+               (send d/reader close-file)]
               [(= 2 d/s)
                (define temp-matrix (list->vector (arithmetic-decode d/reader)))
                (set! d/quantized-matrix
                      (for/vector ([i SIZE])
                        (for/vector ([j SIZE])
-                         (vector-ref temp-matrix (+ (* i SIZE) j)))))])))]))
+                         (- (vector-ref temp-matrix (+ (* i SIZE) j)) 255))))])))]))
 
 (define d/matrices #f)
 (define decode-button

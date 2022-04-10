@@ -25,7 +25,7 @@
   (list (& (& (<< low 1) (sub1 10..0)) 11..1)
         (& (|| (<< high 1) (add1 10..0)) 11..1)))
   
-;-------------------------------------------------------------------------
+;-------------------------------ENCODE------------------------------
 
 (define (output-bit+storage bit storage bit-writer)
   (send bit-writer write-bit bit)
@@ -58,7 +58,7 @@
        (loop (caar temp) (cadar temp) (cadr temp) (update-model model (first matrix) size) (rest matrix))]))
   (send bit-writer close-file))
 
-;-------------------------------------------------------------------------
+;-------------------------------DECODE------------------------------
 
 (define (decode-symbol interval value bit-reader)
   (define low (car interval))
@@ -92,4 +92,4 @@
        (send bit-reader close-file) (reverse matrix)]
       [else
        (define temp (decode-symbol (get-interval model symbol low high size) value bit-reader))
-       (loop (caar temp) (cadar temp) (cadr temp) (update-model model symbol size) (cons (- symbol 255) matrix))])))
+       (loop (caar temp) (cadar temp) (cadr temp) (update-model model symbol size) (cons symbol matrix))])))
