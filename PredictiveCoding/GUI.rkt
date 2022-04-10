@@ -1,5 +1,5 @@
 #lang racket/gui
-(require plot "../helpers/bitwr.rkt" "NearLossless.rkt")
+(require plot "../helpers/bitwr.rkt" "NearLossless.rkt" "AC.rkt")
 
 (define frame
   (new frame%
@@ -99,6 +99,18 @@
             (for ([i quantized-values]) (send writer write-bits (+ 255 i) 9))
             (send writer write-bits 0 7)
             (send writer close-file)))]))
+
+(define save-arithmetic
+  (new button%
+       [parent input-panel]
+       [label "Save Arithmetic"]
+       [callback
+        (λ (button event)
+          (when quantized-values
+            (define save-name (string-append "utils/" image-name ".k" (number->string (send k get-value))
+                                             "p" (number->string (send predictors get-selection)) "A.nl"))
+            (arithmetic-encode (map (λ(x) (+ x 255)) (vector->list quantized-values))
+                               (list (send k get-value) (send predictors get-selection)) save-name)))]))
 
 ;------------------------------------TAB PANEL------------------------------------
 
@@ -261,11 +273,19 @@
             (set! d/k (send d/reader read-bits 4))
             (set! d/p (send d/reader read-bits 4))
             (set! d/s (send d/reader read-bits 2))
-            (set! d/quantized-matrix
-                  (for/vector ([i SIZE])
-                    (for/vector ([i SIZE])
-                      (- (send d/reader read-bits 9) 255))))
-            (send d/reader close-file)))]))
+            (cond
+              [(= 0 d/s)
+               (set! d/quantized-matrix
+                     (for/vector ([i SIZE])
+                       (for/vector ([i SIZE])
+                         (- (send d/reader read-bits 9) 255))))
+               (send d/reader close-file)]
+              [(= 2 d/s)
+               (define temp-matrix (list->vector (arithmetic-decode d/reader)))
+               (set! d/quantized-matrix
+                     (for/vector ([i SIZE])
+                       (for/vector ([j SIZE])
+                         (vector-ref temp-matrix (+ (* i SIZE) j)))))])))]))
 
 (define d/matrices #f)
 (define decode-button

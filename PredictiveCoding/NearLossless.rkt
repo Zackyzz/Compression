@@ -31,11 +31,6 @@
     (init k)
     (init predictor)
     
-    (define (matrix-get matrix i j)
-      (vector-ref (vector-ref matrix i) j))
-    (define (matrix-set matrix i j val)
-      (vector-set! (vector-ref matrix i) j val))
-    
     (define original original-matrix)
     (define ep (for/vector ([i size]) (make-vector size)))
     (define ep/Q (for/vector ([i size]) (make-vector size)))
@@ -82,12 +77,7 @@
     (init range)
     (init k)
     (init predictor)
-    
-    (define (matrix-get matrix i j)
-      (vector-ref (vector-ref matrix i) j))
-    (define (matrix-set matrix i j val)
-      (vector-set! (vector-ref matrix i) j val))
-    
+
     (define ep/Q compressed-matrix)
     (define epd (for/vector ([i size]) (make-vector size)))
     (define decoded (for/vector ([i size]) (make-vector size)))
@@ -123,6 +113,11 @@
           (matrix-set decoded i j (normalize (+ prediction dq-error))))))))
 
 ;------------------------------------FUNCTIONS------------------------------------
+
+(define (matrix-get matrix i j)
+  (vector-ref (vector-ref matrix i) j))
+(define (matrix-set matrix i j val)
+  (vector-set! (vector-ref matrix i) j val))
 
 (define (flatten-matrix matrix)
   (apply vector-append (vector->list matrix)))
