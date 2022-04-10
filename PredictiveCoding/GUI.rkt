@@ -5,7 +5,7 @@
   (new frame%
        [label "Near-Lossless Predictive Coding"]
        [x 250] [y 250]
-       [width 1500] [height 500]))
+       [width 1450] [height 500]))
 
 (send frame show #t)
 
@@ -294,6 +294,31 @@
           (when d/image-name
             (send decode-bitmap save-file (string-append "utils/" d/image-name ".bmp") 'bmp)))]))
 
+(define d/error-button
+  (new button%
+       [parent decode-panel]
+       [label "Chebyshev distance:"]
+       [callback
+        (λ (button event)
+          (when (and matrices d/matrices)
+            (define original (vector->list (flatten-matrix (vector-ref matrices 0))))
+            (define decoded (vector->list (flatten-matrix (vector-ref d/matrices 2))))
+            (send min-error set-value (number->string (apply min (map - original decoded))))
+            (send max-error set-value (number->string (apply max (map - original decoded))))))]))
+
+(define min-error
+  (new text-field%
+       [parent decode-panel]
+       [label "Min:"]
+       [horiz-margin 50]
+       [init-value ""]))
+
+(define max-error
+  (new text-field%
+       [parent decode-panel]
+       [label "Max:"]
+       [horiz-margin 50]
+       [init-value ""]))
 
 ;------------------------------------DECODER HISTOGRAM PANEL------------------------------------
 
