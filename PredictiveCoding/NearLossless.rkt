@@ -19,8 +19,8 @@
     [(<= C min-AB) max-AB]
     [else (A+B-C A B C)]))
 
-(define (string->procedure str)
-  (eval (string->symbol str) (variable-reference->namespace (#%variable-reference))))
+(define predictors-list
+  (list ->128 A B C A+B-C A+B/2-C/2 B+A/2-C/2 A/2+B/2 jpeg-ls))
 
 (define coder%
   (class object%
@@ -122,15 +122,15 @@
           (matrix-set epd i j dq-error)
           (matrix-set decoded i j (normalize (+ prediction dq-error))))))))
 
-;-----------------------------------------FUNCTIONS----------------------------------------
+;------------------------------------FUNCTIONS------------------------------------
+
+(define (flatten-matrix matrix)
+  (apply vector-append (vector->list matrix)))
 
 (define (get-matrix buffer)
   (for/vector ([i SIZE])
     (for/vector ([j (in-range (add1 (* i 4 SIZE)) (add1 (* (add1 i) 4 SIZE)) 4)])
       (bytes-ref buffer j))))
-
-(define (flatten-matrix matrix)
-  (apply vector-append (vector->list matrix)))
 
 (define (get-histogram matrix [scaling-factor 1])
   (define (vector-increment vec i)
@@ -141,6 +141,21 @@
   (vector-map vector
               (for/vector ([i (in-range (- 255) 256)]) i)
               (vector-map (λ(x) (* x scaling-factor)) temp)))
+
+(define (matrix->bytes matrix scale)
+  (define (make-pixel4 pixel scale)
+    (define (normalize pixel)
+      (define x (+ 128 (* pixel scale)))
+      (exact-floor (cond [(< x 0) 0] [(> x 255) 255] [else x])))
+    (list 255 (normalize pixel) (normalize pixel) (normalize pixel)))
+  (list->bytes
+   (apply append (map (curryr make-pixel4 scale) (vector->list (flatten-matrix matrix))))))
+
+(define (decoded->bytes matrix)
+  (list->bytes
+   (apply append (map (λ(x) (list 255 x x x)) (vector->list (flatten-matrix matrix))))))
+
+;---------------------------------------------------------------------------------
 
 #|(define original
   (vector (vector 7 5 2 0)

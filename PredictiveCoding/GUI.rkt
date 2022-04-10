@@ -56,13 +56,15 @@
        [label "Encode"]
        [callback
         (λ (button event)
-          (define coder
-            (new coder%
-                 [original-matrix original-matrix]
-                 [size SIZE] [range 255] [k (send k get-value)]
-                 [predictor (string->procedure (send predictors get-string-selection))]))
-          (set! matrices (send coder get-matrices))
-          (set! quantized-values (flatten-matrix (vector-ref matrices 2))))]))
+          (when image-name
+            (define coder
+              (new coder%
+                   [original-matrix original-matrix]
+                   [size SIZE] [range 255] [k (send k get-value)]
+                   [predictor (list-ref predictors-list (send predictors get-selection))]))
+            (set! matrices (send coder get-matrices))
+            (set! quantized-values (flatten-matrix (vector-ref matrices 2)))))]))
+
 
 (define predictors
   (new choice%
@@ -88,22 +90,42 @@
        [callback
         (λ (button event)
           (when quantized-values
-            (set! writer (new bit-writer% [path "saved/test.bmp.fixed.nl"]))
-            (send writer write-bits (send predictors get-selection) 4)
+            (define save-name (string-append "utils/" image-name ".k" (number->string (send k get-value))
+                                             "p" (number->string (send predictors get-selection)) "F.nl"))
+            (set! writer (new bit-writer% [path save-name]))
             (send writer write-bits (send k get-value) 4)
+            (send writer write-bits (send predictors get-selection) 4)
             (send writer write-bits 0 2)
             (for ([i quantized-values]) (send writer write-bits (+ 255 i) 9))
+            (send writer write-bits 0 7)
             (send writer close-file)))]))
 
-;------------------------------------HISTOGRAM PANEL------------------------------------
+;------------------------------------TAB PANEL------------------------------------
+
+(define tab-panel
+  (new tab-panel%
+       [parent main-panel] [choices (list "Coder" "Decoder")]
+       [callback
+        (λ (tp e)
+          (case (send tp get-selection)
+            [(0) (send tp change-children (λ(x) (list coder-panel)))]
+            [(1) (send tp change-children (λ(x) (list decoder-panel)))]))]))
+
+(define coder-panel
+  (new horizontal-panel%
+       [parent tab-panel]))
+
+(define decoder-panel
+  (new horizontal-panel%
+       [parent tab-panel]))
+
+(send tab-panel change-children (λ(x) (list coder-panel)))
+
+;------------------------------------CODER HISTOGRAM PANEL------------------------------------
 
 (define histogram-panel
   (new vertical-panel%
-       [parent main-panel]))
-
-(define (plot-histogram pixels dc)
-  (plot/dc (discrete-histogram pixels #:y-max 100 #:add-ticks? #f #:gap 0)
-           dc 0 20 (* 2 SIZE) SIZE #:x-label "0" #:y-label #f))
+       [parent coder-panel]))
 
 (define show-plot #f)
 (define histogram-canvas%
@@ -121,26 +143,28 @@
          #:x-label #f #:y-label #f)
         (set! show-plot #f)))))
 
+(define histogram-pixels (get-histogram original-matrix))
 (define histogram-canvas
   (new histogram-canvas%
        [parent histogram-panel]
        [min-width (* 2 SIZE)]
        [paint-callback
         (λ(canvas dc)
-          (plot-histogram (get-histogram original-matrix) dc))]))
+          (plot/dc (discrete-histogram histogram-pixels #:y-max 100 #:add-ticks? #f #:gap 0)
+                   dc 0 20 (* 2 SIZE) SIZE #:x-label "0" #:y-label #f))]))
 
 (define refresh-histogram
   (new button%
        [parent histogram-panel]
-       [label "Refresh Histogram"]
+       [label "Refresh Histogram (C)"]
        [callback
         (λ (button event)
           (when matrices
             (set! show-plot #t)
-            (plot-histogram (get-histogram
-                             (vector-ref matrices (send histogram-choices get-selection))
-                             (string->number (send histogram-scale get-value)))
-                            (send histogram-canvas get-dc))))]))
+            (set! histogram-pixels (get-histogram
+                                    (vector-ref matrices (send histogram-choices get-selection))
+                                    (string->number (send histogram-scale get-value))))
+            (send histogram-canvas on-paint)))]))
 
 (define histogram-choices
   (new choice%
@@ -152,14 +176,14 @@
   (new text-field%
        [parent histogram-panel]
        [label ""]
-       [horiz-margin 200]
-       [init-value "0.1"]))
+       [horiz-margin 225]
+       [init-value "0.02"]))
 
-;------------------------------------ERROR PANEL------------------------------------
+;------------------------------------CODER ERROR PANEL------------------------------------
 
 (define error-panel
   (new vertical-panel%
-       [parent main-panel]))
+       [parent coder-panel]))
 
 (define error-bitmap (make-bitmap SIZE SIZE))
 (define error-dc (send error-bitmap make-dc))
@@ -177,7 +201,7 @@
 (define refresh-error-image
   (new button%
        [parent error-panel]
-       [label "Refresh Error Image"]
+       [label "Refresh Error Image (C)"]
        [callback
         (λ (button event)
           (when matrices
@@ -185,16 +209,6 @@
                   (matrix->bytes (vector-ref matrices (add1 (send error-choices get-selection)))
                                  (string->number (send error-scale get-value)))))
           (send error-canvas on-paint))]))
-
-(define (error-pixel pixel scale)
-  (define (normalize pixel)
-    (define x (+ 128 (* pixel scale)))
-    (exact-floor (cond [(< x 0) 0] [(> x 255) 255] [else x])))
-  (list 255 (normalize pixel) (normalize pixel) (normalize pixel)))
-
-(define (matrix->bytes matrix scale)
-  (list->bytes
-   (apply append (map (curryr error-pixel scale) (vector->list (flatten-matrix matrix))))))
 
 (define error-choices
   (new radio-box%
@@ -227,3 +241,142 @@
        [paint-callback
         (λ (canvas dc)
           (send dc draw-bitmap decode-bitmap 20 20))]))
+
+(define d/reader #f)
+(define d/quantized-matrix #f)
+(define d/k #f)
+(define d/p #f)
+(define d/s #f)
+(define d/image-name #f)
+(define d/load-button
+  (new button%
+       [parent decode-panel]
+       [label "Load file"]
+       [callback
+        (λ (button event)
+          (define path (get-file))
+          (when path
+            (set! d/image-name (last (string-split (path->string path) "\\")))
+            (set! d/reader (new bit-reader% [path path]))
+            (set! d/k (send d/reader read-bits 4))
+            (set! d/p (send d/reader read-bits 4))
+            (set! d/s (send d/reader read-bits 2))
+            (set! d/quantized-matrix
+                  (for/vector ([i SIZE])
+                    (for/vector ([i SIZE])
+                      (- (send d/reader read-bits 9) 255))))
+            (send d/reader close-file)))]))
+
+(define d/matrices #f)
+(define decode-button
+  (new button%
+       [parent decode-panel]
+       [label "Decode"]
+       [callback
+        (λ (button event)
+          (when d/quantized-matrix
+            (define decoder
+              (new decoder%
+                   [compressed-matrix d/quantized-matrix]
+                   [size SIZE] [range 255] [k d/k]
+                   [predictor (list-ref predictors-list d/p)]))
+            (set! d/matrices (send decoder get-matrices))
+            (send decode-bitmap set-argb-pixels 0 0 SIZE SIZE
+                  (decoded->bytes (vector-ref d/matrices 2)))
+            (send decoder-canvas on-paint)))]))
+
+(define d/save-button
+  (new button%
+       [parent decode-panel]
+       [label "Save"]
+       [callback
+        (λ (button event)
+          (when d/image-name
+            (send decode-bitmap save-file (string-append "utils/" d/image-name ".bmp") 'bmp)))]))
+
+
+;------------------------------------DECODER HISTOGRAM PANEL------------------------------------
+
+(define d/histogram-panel
+  (new vertical-panel%
+       [parent decoder-panel]))
+
+(define d/histogram-pixels (get-histogram original-matrix))
+(define d/histogram-canvas
+  (new histogram-canvas%
+       [parent d/histogram-panel]
+       [min-width (* 2 SIZE)]
+       [paint-callback
+        (λ(canvas dc)
+          (plot/dc (discrete-histogram d/histogram-pixels #:y-max 100 #:add-ticks? #f #:gap 0)
+                   dc 0 20 (* 2 SIZE) SIZE #:x-label "0" #:y-label #f))]))
+
+(define d/refresh-histogram
+  (new button%
+       [parent d/histogram-panel]
+       [label "Refresh Histogram (D)"]
+       [callback
+        (λ (button event)
+          (when d/matrices
+            (set! show-plot #t)
+            (set! d/histogram-pixels (get-histogram
+                                      (vector-ref d/matrices (send d/histogram-choices get-selection))
+                                      (string->number (send d/histogram-scale get-value))))
+            (send d/histogram-canvas on-paint)))]))
+
+(define d/histogram-choices
+  (new choice%
+       [parent d/histogram-panel]
+       [label ""]
+       [choices (list "Error Pred" "Error Pred Q" "Decoded")]))
+
+(define d/histogram-scale
+  (new text-field%
+       [parent d/histogram-panel]
+       [label ""]
+       [horiz-margin 225]
+       [init-value "0.02"]))
+
+;------------------------------------DECODER ERROR PANEL------------------------------------
+
+(define d/error-panel
+  (new vertical-panel%
+       [parent decoder-panel]))
+
+(define d/error-bitmap (make-bitmap SIZE SIZE))
+(define d/error-dc (send d/error-bitmap make-dc))
+(send d/error-dc set-background (make-color 0 0 0))
+(send d/error-dc clear)
+
+(define d/error-canvas
+  (new canvas%
+       [parent d/error-panel]
+       [min-width SIZE]
+       [paint-callback
+        (λ (canvas dc)
+          (send dc draw-bitmap d/error-bitmap 20 20))]))
+
+(define d/refresh-error-image
+  (new button%
+       [parent d/error-panel]
+       [label "Refresh Error Image (D)"]
+       [callback
+        (λ (button event)
+          (when d/matrices
+            (send d/error-bitmap set-argb-pixels 0 0 SIZE SIZE
+                  (matrix->bytes (vector-ref d/matrices (send d/error-choices get-selection))
+                                 (string->number (send d/error-scale get-value)))))
+          (send d/error-canvas on-paint))]))
+
+(define d/error-choices
+  (new radio-box%
+       [parent d/error-panel]
+       [label ""]
+       [choices (list "Error prediction" "Q Error prediction")]))
+
+(define d/error-scale
+  (new text-field%
+       [parent d/error-panel]
+       [label ""]
+       [horiz-margin 100]
+       [init-value "7.5"]))
