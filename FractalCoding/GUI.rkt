@@ -4,8 +4,8 @@
 (define frame
   (new frame%
        [label "Fractal Coding"]
-       [x 250] [y 150]
-       [width 1124] [height 612]))
+       [x 100] [y 150]
+       [height 648]))
 
 (send frame show #t)
 
@@ -30,7 +30,7 @@
        [min-width SIZE]
        [paint-callback
         (λ (canvas dc)
-          (send dc draw-bitmap encode-bitmap 20 20))]))
+          (send dc draw-bitmap encode-bitmap 0 0))]))
 
 (define image-name #f)
 (define encode-buffer (make-bytes (* SIZE SIZE 4)))
@@ -48,11 +48,11 @@
             (send encode-canvas on-paint)
             (send encode-bitmap get-argb-pixels 0 0 SIZE SIZE encode-buffer)
             (set! original-matrix (get-matrix encode-buffer))
-            (set! r (get-ranges original-matrix))
-            (set! d (get-domains original-matrix))))]))
+            (set! ranges (get-ranges original-matrix))
+            (set! domains (get-domains original-matrix))))]))
 
-(define r (get-ranges original-matrix))
-(define d (get-domains original-matrix))
+(define ranges (get-ranges original-matrix))
+(define domains (get-domains original-matrix))
 
 ;------------------------------------DECODE PANEL----------------------------------------
 
@@ -71,7 +71,7 @@
        [min-width SIZE]
        [paint-callback
         (λ (canvas dc)
-          (send dc draw-bitmap decode-bitmap 20 20))]))
+          (send dc draw-bitmap decode-bitmap 0 0))]))
 
 (define load-button-decode
   (new button%
@@ -83,3 +83,38 @@
           (when path
             (set! decode-bitmap (read-bitmap path))
             (send decode-canvas on-paint)))]))
+
+;------------------------------------TEST PANEL----------------------------------------
+
+(define test-panel
+  (new vertical-panel%
+       [parent main-panel]))
+
+(define test-bitmap (make-bitmap SIZE SIZE))
+(define test-dc (send test-bitmap make-dc))
+(send test-dc set-background (make-color 0 0 0))
+(send test-dc clear)
+
+(define test-canvas
+  (new canvas%
+       [parent test-panel]
+       [min-width SIZE]
+       [paint-callback
+        (λ (canvas dc)
+          (send dc draw-bitmap test-bitmap 0 0))]))
+
+(define iso-button
+  (new button%
+       [parent test-panel]
+       [label "Iso"]
+       [callback
+        (λ (button event)
+          (define q (make-isometry original-matrix (send isometries get-selection) SIZE))
+          (send test-bitmap set-argb-pixels 0 0 SIZE SIZE (matrix->bytes q))
+          (send test-canvas on-paint))]))
+
+(define isometries
+  (new choice%
+       [parent test-panel]
+       [label ""]
+       [choices (list "0" "1" "2" "3" "4" "5" "6" "7")]))
