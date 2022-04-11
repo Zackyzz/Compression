@@ -1,11 +1,11 @@
 #lang racket/gui
-(require "../helpers/bitwr.rkt" "FractalCoding.rkt")
+(require "FractalCoding.rkt")
 
 (define frame
   (new frame%
        [label "Fractal Coding"]
        [x 300] [y 150]
-       [height 648]))
+       [width 1124] [height 710]))
 
 (send frame show #t)
 
@@ -30,11 +30,21 @@
        [min-width SIZE]
        [paint-callback
         (λ (canvas dc)
-          (send dc draw-bitmap encode-bitmap 0 0))]))
+          (send dc draw-bitmap encode-bitmap 20 20))]))
 
+(define ranges #f)
+(define domains #f)
 (define image-name #f)
 (define encode-buffer (make-bytes (* SIZE SIZE 4)))
-(define original-matrix (get-matrix encode-buffer))
+(define original-matrix #f)
+
+(define gauge-process
+  (new gauge%
+       [parent encode-panel]
+       [label ""]
+       [range 4096]
+       [horiz-margin 100]))
+
 (define load-button-encode
   (new button%
        [parent encode-panel]
@@ -51,8 +61,27 @@
             (set! ranges (get-ranges original-matrix))
             (set! domains (get-domains original-matrix))))]))
 
-(define ranges (get-ranges original-matrix))
-(define domains (get-domains original-matrix))
+(define founds #f)
+(define process-button
+  (new button%
+       [parent encode-panel]
+       [label "Process"]
+       [callback
+        (λ (button event)
+          (when (and ranges domains)
+            (set! founds
+                  (time (for/list ([i ranges])
+                          (send gauge-process set-value (add1 (send gauge-process get-value)))
+                          (search-range i domains))))))]))
+  
+(define save-button
+  (new button%
+       [parent encode-panel]
+       [label "Save"]
+       [callback
+        (λ (button event)
+          (when founds
+            (save-founds founds (string-append image-name ".txt"))))]))
 
 ;------------------------------------DECODE PANEL----------------------------------------
 
@@ -71,48 +100,61 @@
        [min-width SIZE]
        [paint-callback
         (λ (canvas dc)
-          (send dc draw-bitmap decode-bitmap 0 0))]))
+          (send dc draw-bitmap decode-bitmap 20 20))]))
 
+(define decode-buffer (make-bytes (* SIZE SIZE 4)))
+(define new-matrix (get-matrix decode-buffer))
 (define load-button-decode
   (new button%
        [parent decode-panel]
-       [label "Load file"]
+       [label "Load Original"]
        [callback
         (λ (button event)
-          (define path (get-file))
+          (define path (get-file #f #f "../FractalCoding/utils" #f #f null '(("bmp" "*.bmp"))))
           (when path
             (set! decode-bitmap (read-bitmap path))
+            (send decode-bitmap get-argb-pixels 0 0 SIZE SIZE decode-buffer)
+            (set! new-matrix (get-matrix decode-buffer))
             (send decode-canvas on-paint)))]))
 
-;------------------------------------TEST PANEL----------------------------------------
-
-(define test-panel
-  (new vertical-panel%
-       [parent main-panel]))
-
-(define test-bitmap (make-bitmap SIZE SIZE))
-(define test-dc (send test-bitmap make-dc))
-(send test-dc set-background (make-color 0 0 0))
-(send test-dc clear)
-
-(define test-canvas
-  (new canvas%
-       [parent test-panel]
-       [min-width SIZE]
-       [paint-callback
-        (λ (canvas dc)
-          (send dc draw-bitmap test-bitmap 0 0))]))
-
-(define new-matrix original-matrix)
-(define iso-button
+(define d/image-name #f)
+(define load-founds
   (new button%
-       [parent test-panel]
-       [label "Iso"]
+       [parent decode-panel]
+       [label "Preinitialize"]
        [callback
         (λ (button event)
-          (define founds (read-founds))
-          (define ds (get-decoding-domains new-matrix))
-          (define blocks (decode founds ds))
-          (set! new-matrix (blocks->image-matrix blocks))
-          (send test-bitmap set-argb-pixels 0 0 SIZE SIZE (matrix->bytes new-matrix))
-          (send test-canvas on-paint))]))
+          (define path (get-file #f #f "../FractalCoding" #f #f null '(("txt" "*.txt"))))
+          (when path
+            (set! d/image-name (last (string-split (path->string path) "\\")))
+            (set! founds (read-founds path))))]))
+
+(define decode-button
+  (new button%
+       [parent decode-panel]
+       [label "Decode"]
+       [callback
+        (λ (button event)
+          (when founds
+            (define blocks (decode founds (get-decoding-domains new-matrix)))
+            (set! new-matrix (blocks->image-matrix blocks))
+            (when original-matrix
+              (send psnr-field set-value (number->string (PSNR original-matrix new-matrix))))
+            (send decode-bitmap set-argb-pixels 0 0 SIZE SIZE (matrix->bytes new-matrix))
+            (send decode-canvas on-paint)))]))
+
+(define d/save-button
+  (new button%
+       [parent decode-panel]
+       [label "Save"]
+       [callback
+        (λ (button event)
+          (when d/image-name
+            (send decode-bitmap save-file (string-append "utils/" d/image-name ".bmp") 'bmp)))]))
+
+(define psnr-field
+  (new text-field%
+       [parent decode-panel]
+       [label "PSNR:"]
+       [horiz-margin 200]
+       [init-value ""]))

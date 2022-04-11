@@ -21,7 +21,7 @@
 (define (matrix->bytes matrix)
   (list->bytes (apply append (map (λ(x) (list 255 x x x)) (vector->list (flatten-matrix matrix))))))
 
-;----------------------------------------------------------------------------------------
+;--------------------------------------ENCODING--------------------------------------------
 
 (define (make-isometry matrix iso [size 8])
   (for/vector ([i size])
@@ -37,46 +37,45 @@
         [(= iso 7) (matrix-get matrix j (- size 1 i))]))))
 
 (define (get-ranges matrix [nr 64] [size 8] [step 8])
-  (list->vector
-   (apply
-    append
-    (for/list ([i (in-range 0 (* nr step) step)])
+  (apply
+   append
+   (for/list ([i (in-range 0 (* nr step) step)])
+     (for/list ([j (in-range 0 (* nr step) step)])
+       (define sum 0)
+       (define sum^2 0)
+       (define block
+         (for/vector ([a (in-range i (+ i size))])
+           (for/vector ([b (in-range j (+ j size))])
+             (define bi (matrix-get matrix a b))
+             (set! sum (+ sum bi))
+             (set! sum^2 (+ sum^2 (sqr bi)))
+             bi)))
+       (list (vector->list (apply vector-append (vector->list block))) sum sum^2)))))
+
+(define (get-domains matrix [nr 63] [size 16] [step 8])
+  (apply
+   append
+   (for/list ([i (in-range 0 (* nr step) step)])
+     (apply
+      append
       (for/list ([j (in-range 0 (* nr step) step)])
         (define sum 0)
         (define sum^2 0)
         (define block
-          (for/vector ([a (in-range i (+ i size))])
-            (for/vector ([b (in-range j (+ j size))])
-              (define bi (matrix-get matrix a b))
+          (for/vector ([a (in-range i (+ i size) 2)])
+            (for/vector ([b (in-range j (+ j size) 2)])
+              (define bi
+                (quotient (+ (matrix-get matrix a b)
+                             (matrix-get matrix a (add1 b))
+                             (matrix-get matrix (add1 a) b)
+                             (matrix-get matrix (add1 a) (add1 b)))
+                          4))
               (set! sum (+ sum bi))
               (set! sum^2 (+ sum^2 (sqr bi)))
               bi)))
-        (list (vector->list (apply vector-append (vector->list block))) sum sum^2))))))
-
-(define (get-domains matrix [nr 63] [size 16] [step 8])
-  (list->vector
-   (apply
-    append
-    (for/list ([i (in-range 0 (* nr step) step)])
-      (apply
-       append
-       (for/list ([j (in-range 0 (* nr step) step)])
-         (define sum 0)
-         (define sum^2 0)
-         (define block
-           (for/vector ([a (in-range i (+ i size) 2)])
-             (for/vector ([b (in-range j (+ j size) 2)])
-               (define bi
-                 (quotient (+ (matrix-get matrix a b)
-                              (matrix-get matrix a (add1 b))
-                              (matrix-get matrix (add1 a) b)
-                              (matrix-get matrix (add1 a) (add1 b)))
-                           4))
-               (set! sum (+ sum bi))
-               (set! sum^2 (+ sum^2 (sqr bi)))
-               bi)))
-         (for/list ([i 8])
-           (list (vector->list (apply vector-append (vector->list (make-isometry block i)))) sum sum^2))))))))
+        (for/list ([i 8])
+          (list (vector->list (apply vector-append (vector->list (make-isometry block i))))
+                sum sum^2)))))))
 
 (define (search-range lrange domains)
   (define range (first lrange))
@@ -111,13 +110,7 @@
       (set! O o)))
   (list error index S O))
 
-(define (search-ranges ranges domains)
-  (for/list ([i ranges] [j (in-naturals)])
-    (when (= 0 (remainder j 100))
-      (printf "~a\n" j))
-    (search-range i domains)))
-
-;----------------------------------------------------------------------------------------
+;---------------------------------------DECODING----------------------------------------
 
 (define (get-decoding-domains matrix [nr 63] [size 16] [step 8])
   (list->vector
@@ -135,26 +128,11 @@
                             (matrix-get matrix (add1 a) b)
                             (matrix-get matrix (add1 a) (add1 b)))
                          4))))
-         (for/list ([i 8])
-           (make-isometry block i))))))))
-
-(define (getr matrix [nr 64] [size 8] [step 8])
-  (list->vector
-   (apply
-    append
-    (for/list ([i (in-range 0 (* nr step) step)])
-      (for/list ([j (in-range 0 (* nr step) step)])
-          (for/vector ([a (in-range i (+ i size))])
-            (for/vector ([b (in-range j (+ j size))])
-              (define bi (matrix-get matrix a b))
-              bi)))))))
+         (for/list ([i 8]) (make-isometry block i))))))))
 
 (define (normalize x)
-  (set! x (exact-floor x))
-  (cond
-    [(< x 0) 0]
-    [(> x 255) 255]
-    [else x]))
+  (set! x (exact-round x))
+  (cond [(< x 0) 0] [(> x 255) 255] [else x]))
 
 (define (decode founds new-domains)
   (for/vector ([i founds])
@@ -166,22 +144,28 @@
         (normalize (+ o (* s (matrix-get domain i j))))))))
 
 (define (blocks->image-matrix blocks)
-  (define temp (for/vector ([i SIZE])
-                 (for/vector ([j SIZE])
-                   0)))
+  (define new-matrix (for/vector ([i SIZE]) (make-vector SIZE)))
   (for ([block blocks] [index (in-naturals)])
-    (define a (quotient index 64))
-    (define b (remainder index 64))
+    (define row (quotient index 64))
+    (define column (remainder index 64))
     (for ([i 8])
       (for ([j 8])
-        (matrix-set temp (+ (* 8 a) i) (+ (* 8 b) j) (matrix-get block i j)))))
-  temp)
+        (matrix-set new-matrix (+ (* 8 row) i) (+ (* 8 column) j) (matrix-get block i j)))))
+  new-matrix)
 
 ;----------------------------------------------------------------------------------------
                 
-(define (save-founds founds [path "temp.txt"])
+(define (save-founds founds path)
   (display-lines-to-file
    (map (λ(x) (string-join (map number->string x))) founds) path #:exists 'replace))
 
-(define (read-founds [path "temp.txt"])
+(define (read-founds path)
   (map (λ(x) (map string->number (string-split x))) (file->lines path)))
+
+(define (PSNR original decoded)
+  (set! original (vector->list (flatten-matrix original)))
+  (set! decoded (vector->list (flatten-matrix decoded)))
+  (* 10 (log
+         (/ (* SIZE SIZE (sqr (apply max original)))
+            (apply + (map (λ(x y) (sqr (- x y))) original decoded)))
+         10)))
