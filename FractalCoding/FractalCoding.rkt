@@ -81,34 +81,24 @@
   (define range (first lrange))
   (define sum-r (second lrange))
   (define sum-r^2 (third lrange))
-  (define index 0)
-  (define error 10000000)
-  (define S 0)
-  (define O 0)
-  (for ([i domains] [j (in-naturals)])
-    (define domain (first i))
-    (define sum-d (second i))
-    (define sum-d^2 (third i))
-    (define sum-rd (apply + (map * range domain)))
-    (define denom-s (- (* n sum-d^2) (sqr sum-d)))
-    (define s
-      (if (= 0 denom-s)
-          0
-          (/ (- (* n sum-rd) (* sum-r sum-d)) denom-s)))
-    (define o
-      (if (= 0 denom-s)
-          (/ sum-r n)
-          (/ (- sum-r (* s sum-d)) n)))
-    (define Error (/ (+ sum-r^2
+  (let loop ([error 10000000] [index 0] [S 0] [O 0] [domains domains] [it 0])
+    [cond
+      [(empty? domains) (list (/ error n) index S O)]
+      [else
+       (define domain (caar domains))
+       (define sum-d (cadar domains))
+       (define sum-d^2 (caddar domains))
+       (define sum-rd (apply + (map * range domain)))
+       (define denom-s (- (* n sum-d^2) (sqr sum-d)))
+       (define s (if (= 0 denom-s) 0
+                     (/ (- (* n sum-rd) (* sum-r sum-d)) denom-s)))
+       (define o (/ (- sum-r (* s sum-d)) n))
+       (define Error (+ sum-r^2
                         (* s (+ (* s sum-d^2) (- (* 2 sum-rd)) (* 2 o sum-d)))
-                        (* o (- (* o n) (* 2 sum-r))))
-                     n))
-    (when (< Error error)
-      (set! error Error)
-      (set! index j)
-      (set! S s)
-      (set! O o)))
-  (list error index S O))
+                        (* o (- (* o n) (* 2 sum-r)))))
+       (if (< Error error)
+           (loop Error it s o (rest domains) (add1 it))
+           (loop error index S O (rest domains) (add1 it)))]]))
 
 ;---------------------------------------DECODING----------------------------------------
 

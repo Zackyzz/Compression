@@ -56,6 +56,7 @@
             (set! image-name (last (string-split (path->string path) "\\")))
             (set! encode-bitmap (read-bitmap path))
             (send encode-canvas on-paint)
+            (send gauge-process set-value 0)
             (send encode-bitmap get-argb-pixels 0 0 SIZE SIZE encode-buffer)
             (set! original-matrix (get-matrix encode-buffer))
             (set! ranges (get-ranges original-matrix))
