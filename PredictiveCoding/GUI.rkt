@@ -41,7 +41,7 @@
        [label "Load file"]
        [callback
         (λ (button event)
-          (define path (get-file))
+          (define path (get-file #f #f "../PredictiveCoding/utils" #f #f null '(("bmp" "*.bmp"))))
           (when path
             (set! image-name (last (string-split (path->string path) "\\")))
             (set! input-bitmap (read-bitmap path))
@@ -291,7 +291,7 @@
        [label "Load file"]
        [callback
         (λ (button event)
-          (define path (get-file))
+          (define path (get-file #f #f "../PredictiveCoding/utils" #f #f null '(("nl" "*.nl"))))
           (when path
             (set! d/image-name (last (string-split (path->string path) "\\")))
             (set! d/reader (new bit-reader% [path path]))

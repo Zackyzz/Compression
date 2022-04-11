@@ -41,7 +41,7 @@
        [label "Load file"]
        [callback
         (λ (button event)
-          (define path (get-file))
+          (define path (get-file #f #f "../FractalCoding/utils" #f #f null '(("bmp" "*.bmp"))))
           (when path
             (set! image-name (last (string-split (path->string path) "\\")))
             (set! encode-bitmap (read-bitmap path))
