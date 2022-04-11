@@ -4,7 +4,7 @@
 (define frame
   (new frame%
        [label "Fractal Coding"]
-       [x 100] [y 150]
+       [x 300] [y 150]
        [height 648]))
 
 (send frame show #t)
@@ -103,18 +103,16 @@
         (λ (canvas dc)
           (send dc draw-bitmap test-bitmap 0 0))]))
 
+(define new-matrix original-matrix)
 (define iso-button
   (new button%
        [parent test-panel]
        [label "Iso"]
        [callback
         (λ (button event)
-          (define q (make-isometry original-matrix (send isometries get-selection) SIZE))
-          (send test-bitmap set-argb-pixels 0 0 SIZE SIZE (matrix->bytes q))
+          (define founds (read-founds))
+          (define ds (get-decoding-domains new-matrix))
+          (define blocks (decode founds ds))
+          (set! new-matrix (blocks->image-matrix blocks))
+          (send test-bitmap set-argb-pixels 0 0 SIZE SIZE (matrix->bytes new-matrix))
           (send test-canvas on-paint))]))
-
-(define isometries
-  (new choice%
-       [parent test-panel]
-       [label ""]
-       [choices (list "0" "1" "2" "3" "4" "5" "6" "7")]))
