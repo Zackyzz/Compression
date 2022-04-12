@@ -100,6 +100,11 @@
            (loop Error it s o (rest domains) (add1 it))
            (loop error index S O (rest domains) (add1 it)))]]))
 
+(define (search-ranges ranges domains [gauge? #f] [p-gauge #f])
+  (for/list ([i ranges])
+    (when gauge? (send p-gauge set-value (add1 (send p-gauge get-value))))
+    (search-range i domains)))
+
 ;---------------------------------------DECODING----------------------------------------
 
 (define (get-decoding-domains matrix [nr 63] [size 16] [step 8])

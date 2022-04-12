@@ -42,7 +42,7 @@
   (new gauge%
        [parent encode-panel]
        [label ""]
-       [range 4096]
+       [range 2048]
        [horiz-margin 100]))
 
 (define load-button-encode
@@ -71,10 +71,11 @@
         (λ (button event)
           (when (and ranges domains)
             (set! founds
-                  (time (for/list ([i ranges])
-                          (send gauge-process set-value (add1 (send gauge-process get-value)))
-                          (search-range i domains))))))]))
-  
+                  (time
+                   (let ([f (future (λ() (search-ranges (drop ranges 2048) domains)))])
+                     (apply append (list (search-ranges (take ranges 2048) domains #t gauge-process)
+                                         (touch f))))))))]))
+                     
 (define save-button
   (new button%
        [parent encode-panel]
