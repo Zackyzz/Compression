@@ -4,7 +4,7 @@
 (define frame
   (new frame%
        [label "Near-Lossless Predictive Coding"]
-       [x 250] [y 250]
+       [x 43] [y 130]
        [width 1450] [height 525]))
 
 (send frame show #t)

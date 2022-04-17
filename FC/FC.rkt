@@ -3,6 +3,8 @@
 
 (define SIZE 512)
 (define n 64.0)
+(define max-s (arithmetic-shift 1 5))
+(define max-o (arithmetic-shift 1 7))
 
 (define (get-matrix buffer)
   (for/vector ([i SIZE])
@@ -32,12 +34,13 @@
   new-matrix)
 
 (define (whiterize matrix x y size)
+  (define new-matrix matrix)
   (for ([i size])
-      (for ([j size])
-        (matrix-set matrix (+ (* 8 x) i) (+ (* 8 y) j) 255)))
-  matrix)
-  
-  
+    (for ([j size])
+      (when (or (= 0 (remainder i (sub1 size))) (= 0 (remainder j (sub1 size))))
+        (matrix-set new-matrix (+ (* 8 x) i) (+ (* 8 y) j) 255))))
+  new-matrix)
+
 ;--------------------------------------ENCODING--------------------------------------------
 
 (define (make-isometry matrix iso [size 8])
@@ -82,11 +85,11 @@
           (for/vector ([a (in-range i (+ i size) 2)])
             (for/vector ([b (in-range j (+ j size) 2)])
               (define bi
-                (/ (+ (matrix-get matrix a b)
-                      (matrix-get matrix a (add1 b))
-                      (matrix-get matrix (add1 a) b)
-                      (matrix-get matrix (add1 a) (add1 b)))
-                   4.0))
+                (quotient (+ (matrix-get matrix a b)
+                             (matrix-get matrix a (add1 b))
+                             (matrix-get matrix (add1 a) b)
+                             (matrix-get matrix (add1 a) (add1 b)))
+                          4))
               (set! sum (+ sum bi))
               (set! sum^2 (+ sum^2 (sqr bi)))
               bi)))
@@ -94,13 +97,28 @@
           (list (vector->list (apply vector-append (vector->list (make-isometry block i))))
                 sum sum^2)))))))
 
+(define (limit n max)
+  (cond [(< n 0) 0] [(>= n max) (- max 1)] [else n]))
+
+(define (quantize-s s)
+  (limit (exact-floor (+ 0.5 (/ (* max-s (+ s 1)) 2.0))) max-s))
+
+(define (dequantize-s quantized-s)
+  (- (/ (* quantized-s 2.0) max-s) 1))
+
+(define (quantize-o o s)
+  (limit (exact-floor (+ 0.5 (/ (* o (sub1 max-o)) (* 255.0 (add1 (abs s)))))) max-o))
+
+(define (dequantize-o quantized-o s)
+  (/ (* quantized-o (add1 (abs s)) 255.0) (sub1 max-o)))
+
 (define (search-range lrange domains)
   (define range (first lrange))
   (define sum-r (second lrange))
   (define sum-r^2 (third lrange))
   (let loop ([error (expt 2 30)] [index 0] [S 0] [O 0] [domains domains] [it 0])
     [cond
-      [(empty? domains) (list (/ error n) index S O)]
+      [(empty? domains) (list index S O)]
       [else
        (define domain (caar domains))
        (define sum-d (cadar domains))
@@ -109,12 +127,18 @@
        (define denom-s (- (* n sum-d^2) (sqr sum-d)))
        (define s (if (= 0 denom-s) 0
                      (/ (- (* n sum-rd) (* sum-r sum-d)) denom-s)))
+       (define quantized-s (quantize-s s))
+       (set! s (dequantize-s quantized-s))
        (define o (/ (- sum-r (* s sum-d)) n))
+       (when (> s 0) (set! o (+ o (* s 255.0))))
+       (define quantized-o (quantize-o o s))
+       (set! o (dequantize-o quantized-o s))
+       (when (> s 0) (set! o (- o (* s 255.0))))
        (define Error (+ sum-r^2
                         (* s (+ (* s sum-d^2) (- (* 2 sum-rd)) (* 2 o sum-d)))
                         (* o (- (* o n) (* 2 sum-r)))))
        (if (< Error error)
-           (loop Error it s o (rest domains) (add1 it))
+           (loop Error it quantized-s quantized-o (rest domains) (add1 it))
            (loop error index S O (rest domains) (add1 it)))]]))
 
 (define (search-ranges ranges domains [p-gauge #f])
@@ -148,9 +172,9 @@
 
 (define (decode founds new-domains)
   (for/vector ([i founds])
-    (define domain (vector-ref new-domains (second i)))
-    (define s (third i))
-    (define o (fourth i))
+    (define domain (vector-ref new-domains (first i)))
+    (define s (second i))
+    (define o (third i))
     (for/vector ([i 8])
       (for/vector ([j 8])
         (normalize (+ o (* s (matrix-get domain i j))))))))
@@ -181,3 +205,8 @@
          (/ (* SIZE SIZE (sqr (apply max original)))
             (apply + (map (λ(x y) (sqr (- x y))) original decoded)))
          10)))
+
+(define (MAE original decoded)
+  (set! original (vector->list (flatten-matrix original)))
+  (set! decoded (vector->list (flatten-matrix decoded)))
+  (/ (apply + (map (λ(x y) (abs (- x y))) original decoded)) (sqr 512.0)))
