@@ -4,8 +4,8 @@
 (define frame
   (new frame%
        [label "Fractal Coding"]
-       [x 100] [y 50]
-       [width 1372] [height 760]))
+       [x 100] [y 25]
+       [width 1375] [height 730]))
 
 (send frame show #t)
 
@@ -37,7 +37,7 @@
           (send range-bitmap set-argb-pixels 0 0 80 80 (matrix->bytes r-matrix))
           (send range-canvas on-paint)
           
-          (define details (list-ref founds (+ (* range-x 8) range-y)))
+          (define details (list-ref founds (+ (* range-x 64) range-y)))
           (define iso (remainder (first details) 8))
           (define domain-xy (quotient (first details) 8))
           (define domain-x (quotient domain-xy 63))
@@ -83,7 +83,7 @@
        [label "Load file"]
        [callback
         (λ (button event)
-          (define path (get-file #f #f "../FC/utils" #f #f null '(("bmp" "*.bmp"))))
+          (define path (get-file #f #f "../FractalCoding/utils" #f #f null))
           (when path
             (set! image-name (last (string-split (path->string path) "\\")))
             (set! encode-bitmap (read-bitmap path))
@@ -204,8 +204,6 @@
        [horiz-margin 60]
        [init-value ""]))
 
-
-
 ;------------------------------------DECODE PANEL----------------------------------------
 
 (define decode-panel
@@ -260,7 +258,7 @@
        [label "Load Original"]
        [callback
         (λ (button event)
-          (define path (get-file #f #f "../FC/utils" #f #f null '(("bmp" "*.bmp"))))
+          (define path (get-file #f #f "../FractalCoding/utils" #f #f null '(("bmp" "*.bmp"))))
           (when path
             (set! decode-bitmap (read-bitmap path))
             (send decode-bitmap get-argb-pixels 0 0 SIZE SIZE decode-buffer)
@@ -274,7 +272,7 @@
        [label "Initialize"]
        [callback
         (λ (button event)
-          (define path (get-file #f #f "../FC" #f #f null '(("fc" "*.fc"))))
+          (define path (get-file #f #f "../FractalCoding" #f #f null '(("fc" "*.fc"))))
           (when path
             (set! d/image-name (last (string-split (path->string path) "\\")))
             (define reader (new bit-reader% [path path]))
@@ -336,19 +334,10 @@
               (build-vector 256 values)
               (vector-map (λ(x) (* x scaling-factor)) temp)))
 
-(define (show-histogram)
+(define (show-histogram original decoded)
   (plot-new-window? #t)
   (plot
    (discrete-histogram
-    (get-histogram original-matrix new-matrix)
+    (get-histogram original decoded)
     #:y-max 65536 #:gap 0 #:add-ticks? #t)
    #:x-label #f #:y-label #f))
-
-(define histogram-button
-  (new button%
-       [parent decode-panel]
-       [label "Histogram"]
-       [callback
-        (λ (button event)
-          (when (and original-matrix new-matrix)
-          (show-histogram)))]))
