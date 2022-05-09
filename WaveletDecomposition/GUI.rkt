@@ -1,12 +1,10 @@
 #lang racket/gui
 (require "Wavelet.rkt")
 
-(define SIZE 512)
-
 (define frame
   (new frame%
        [label "Wavelet Decomposition"]
-       [x 350] [y 200]
+       [x 150] [y 50]
        [width 1150] [height 720]))
 
 (send frame show #t)
@@ -33,11 +31,6 @@
        [paint-callback
         (λ (canvas dc)
           (send dc draw-bitmap input-bitmap 20 20))]))
-
-(define (get-matrix buffer)
-  (for/vector ([i SIZE])
-    (for/vector ([j (in-range (add1 (* i 4 SIZE)) (add1 (* (add1 i) 4 SIZE)) 4)])
-      (bytes-ref buffer j))))
 
 (define image-name #f)
 (define input-buffer (make-bytes (* SIZE SIZE 4)))
@@ -92,56 +85,56 @@
             (set! 3vt-matrix (get-matrix 3vt-buffer))
             (send 3vt-canvas on-paint)))]))
 
-(define (flatten-matrix matrix)
-  (apply vector-append (vector->list matrix)))
-
-(define (normalize x)
-  (set! x (exact-round x))
-  (cond [(< x 0) 0] [(> x 255) 255] [else x]))
-
-(define (matrix->bytes matrix)
-  (list->bytes (apply append (map (λ(x) (list 255 (normalize x) (normalize x) (normalize x)))
-                                  (vector->list (flatten-matrix matrix))))))
+(define buttons-panel
+  (new vertical-panel%
+       [parent main-panel]))
 
 (define analyse-h1
   (new button%
-       [parent 3vt-panel]
+       [parent buttons-panel]
        [label "AnH1"]
        [callback
         (λ (button event)
-          (set! 3vt-matrix (time (analyse-matrix 3vt-matrix)))
-          (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE (time (matrix->bytes 3vt-matrix)))
+          (set! 3vt-matrix (analyse-matrix 3vt-matrix))
+          (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE (matrix->bytes 3vt-matrix))
           (send 3vt-canvas on-paint))]))
-
-(define (transpose matrix)
-  (apply vector-map vector (vector->list matrix)))
 
 (define analyse-v1
   (new button%
-       [parent 3vt-panel]
+       [parent buttons-panel]
        [label "AnV1"]
        [callback
         (λ (button event)
-          (set! 3vt-matrix (time (transpose (analyse-matrix (transpose 3vt-matrix)))))
-          (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE (time (matrix->bytes 3vt-matrix)))
+          (set! 3vt-matrix (transpose (analyse-matrix (transpose 3vt-matrix))))
+          (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE (matrix->bytes 3vt-matrix))
+          (send 3vt-canvas on-paint))]))
+
+#|(define analyse-h2
+  (new button%
+       [parent buttons-panel]
+       [label "AnH2"]
+       [callback
+        (λ (button event)
+          (set! 3vt-matrix (analyse-matrix (vector-take 3vt-matrix (quotient SIZE 2))))
+          (send 3vt-bitmap set-argb-pixels 0 0 (quotient SIZE 2) (quotient SIZE 2) (matrix->bytes 3vt-matrix))
+          (send 3vt-canvas on-paint))]))|#
+
+(define synthesis-v1
+  (new button%
+       [parent buttons-panel]
+       [label "SyV1"]
+       [callback
+        (λ (button event)
+          (set! 3vt-matrix (transpose (synthetize-matrix (transpose 3vt-matrix))))
+          (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE (matrix->bytes 3vt-matrix))
           (send 3vt-canvas on-paint))]))
 
 (define synthesis-h1
   (new button%
-       [parent 3vt-panel]
+       [parent buttons-panel]
        [label "SyH1"]
        [callback
         (λ (button event)
-          (set! 3vt-matrix (time (synthetize-matrix 3vt-matrix)))
-          (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE (time (matrix->bytes 3vt-matrix)))
-          (send 3vt-canvas on-paint))]))
-
-(define synthesis-v1
-  (new button%
-       [parent 3vt-panel]
-       [label "SyV1"]
-       [callback
-        (λ (button event)
-          (set! 3vt-matrix (time (transpose (synthetize-matrix (transpose 3vt-matrix)))))
-          (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE (time (matrix->bytes 3vt-matrix)))
+          (set! 3vt-matrix (synthetize-matrix 3vt-matrix))
+          (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE (matrix->bytes 3vt-matrix))
           (send 3vt-canvas on-paint))]))
