@@ -60,13 +60,31 @@
 (define (flatten-matrix matrix)
   (apply vector-append (vector->list matrix)))
 
-(define (normalize x)
-  (set! x (exact-round x))
-  (cond [(< x 0) 0] [(> x 255) 255] [else x]))
-
-(define (matrix->bytes matrix)
-  (list->bytes (apply append (map (λ(x) (list 255 (normalize x) (normalize x) (normalize x)))
-                                  (vector->list (flatten-matrix matrix))))))
-
 (define (transpose matrix)
   (apply vector-map vector (vector->list matrix)))
+
+(define (matrix-get matrix i j)
+  (vector-ref (vector-ref matrix i) j))
+
+(define (matrix-set matrix i j val)
+  (vector-set! (vector-ref matrix i) j val))
+
+(define (matrix->bytes original incoming [scale 1] [offset 0] [x SIZE] [y SIZE] [level 0])
+  (define temp
+    (for/vector ([i SIZE])
+      (for/vector ([j SIZE])
+        (matrix-get original i j))))
+  
+  (for ([i SIZE])
+    (for ([j SIZE])
+      (if (and (< i (quotient SIZE (expt 2 level))) (< j (quotient SIZE (expt 2 level))))
+          (matrix-set temp i j (if (and (< i y) (< j x))
+                                   (exact-round (matrix-get incoming i j))
+                                   (exact-round (+ offset (* scale (matrix-get incoming i j))))))
+          (matrix-set temp i j (exact-round (+ offset (* scale (matrix-get temp i j))))))))
+  
+  (define (make-rgb-pixel pixel)
+    (define (normalize pixel)
+      (cond [(< pixel 0) 0] [(> pixel 255) 255] [else pixel]))
+    (list 255 (normalize pixel) (normalize pixel) (normalize pixel)))
+  (list->bytes (apply append (map make-rgb-pixel (vector->list (flatten-matrix temp))))))
