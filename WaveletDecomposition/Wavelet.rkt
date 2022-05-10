@@ -41,7 +41,7 @@
   (define len (quotient (length signal) 2))
   (define low (upsample (take signal len) even?))
   (define high (upsample (drop signal len) odd?))
-  (map (λ(x y) (exact-round (+ x y)))
+  (map (λ(x y) (+ x y))
        (convolution low SL) (convolution high SH)))
 
 (define (analyse-matrix matrix)
@@ -73,15 +73,11 @@
   (define temp
     (for/vector ([i SIZE])
       (for/vector ([j SIZE])
-        (matrix-get original i j))))
-  
-  (for ([i SIZE])
-    (for ([j SIZE])
-      (if (and (< i (quotient SIZE (expt 2 level))) (< j (quotient SIZE (expt 2 level))))
-          (matrix-set temp i j (if (and (< i y) (< j x))
-                                   (exact-round (matrix-get incoming i j))
-                                   (exact-round (+ offset (* scale (matrix-get incoming i j))))))
-          (matrix-set temp i j (exact-round (+ offset (* scale (matrix-get temp i j))))))))
+        (if (and (< i (quotient SIZE (expt 2 level))) (< j (quotient SIZE (expt 2 level))))
+            (if (and (< i y) (< j x))
+                (exact-round (matrix-get original i j))
+                (exact-round (+ offset (* scale (matrix-get original i j)))))
+            (exact-round (+ offset (* scale (matrix-get original i j))))))))
   
   (define (make-rgb-pixel pixel)
     (define (normalize pixel)
