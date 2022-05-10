@@ -69,7 +69,7 @@
 (define (matrix-set matrix i j val)
   (vector-set! (vector-ref matrix i) j val))
 
-(define (matrix->bytes original incoming [scale 1] [offset 0] [x SIZE] [y SIZE] [level 0])
+(define (matrix->bytes original [scale 1] [offset 0] [x SIZE] [y SIZE] [level 0])
   (define temp
     (for/vector ([i SIZE])
       (for/vector ([j SIZE])
