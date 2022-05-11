@@ -71,33 +71,6 @@
         (λ (canvas dc)
           (send dc draw-bitmap 3vt-bitmap 20 20))]))
 
-(define 3vt-name #f)
-(define 3vt-buffer (make-bytes (* SIZE SIZE 4)))
-(define load-button-3vt
-  (new button%
-       [parent 3vt-panel]
-       [label "Load wavelet"]
-       [callback
-        (λ (button event)
-          (define path (get-file #f #f "../WaveletDecomposition/utils" #f #f null '(("3vt" "*.3vt"))))
-          (when path
-            (set! 3vt-name (last (string-split (path->string path) "\\")))
-            (set! 3vt-bitmap (read-bitmap path))
-            (send 3vt-bitmap get-argb-pixels 0 0 SIZE SIZE 3vt-buffer)
-            (set! 3vt-matrix (get-matrix 3vt-buffer))
-            (send 3vt-canvas on-paint)))]))
-
-(define 3vt-save
-  (new button%
-       [parent 3vt-panel]
-       [label "Save"]
-       [callback
-        (λ (button event)
-          (when (and image-name analysis)
-            (with-output-to-file (string-append "utils/" image-name ".3vt") #:exists 'replace
-              (λ() (for ([i (flatten-matrix analysis)])
-                     (printf "~a\n" i))))))]))
-
 ;------------------------------------BUTTONS PANEL----------------------------------------
 
 (define buttons-panel
@@ -137,7 +110,7 @@
         (λ (button event)
           (when (and original-matrix 3vt-matrix)
             (define original (vector->list (flatten-matrix original-matrix)))
-            (define decoded (map exact-round (vector->list (flatten-matrix 3vt-matrix))))
+            (define decoded (vector->list (flatten-matrix 3vt-matrix)))
             (send min-error set-value (number->string (apply min (map - original decoded))))
             (send max-error set-value (number->string (apply max (map - original decoded))))))]))
 
@@ -153,104 +126,47 @@
        [label "Max:"]
        [init-value ""]))
 
-;------------------------------------ANALYSIS PANEL----------------------------------------
+;----------------------------------------------------------------------------
 
 (define analysis-panel
   (new vertical-panel%
        [parent main-panel]
        [vert-margin 20]))
 
-(define analysis-h1 #f)
-
-(define analyse-h1
+(define negatron
   (new button%
        [parent analysis-panel]
-       [label "AnH1"]
+       [label "qqq"]
        [callback
         (λ (button event)
-          (send x-field set-value (number->string 256))
+          (send x-field set-value (number->string 512))
           (send y-field set-value (number->string 512))
-          (set! analysis-h1 (analyse-matrix 3vt-matrix))
-          (set! 3vt-matrix
-                (for/vector ([i 512])
-                  (for/vector ([j 512])
-                    (matrix-get analysis-h1 i j))))
-          (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE
-                (matrix->bytes 3vt-matrix
-                               (string->number (send scale-field get-value))
-                               (string->number (send offset-field get-value))
-                               (string->number (send x-field get-value))
-                               (string->number (send y-field get-value))
-                               0))
-          (send 3vt-canvas on-paint))]))
+          (define qq (get-matrix input-buffer))
+          
+          (define analysis-h1 (analyse-matrix qq))
+          
+          (define analysis-v1 (transpose (analyse-matrix (transpose analysis-h1))))
+          (set! qq analysis-v1)
+          
+          (define analysis-h2 (analyse-matrix analysis-v1))
 
-(define analysis-v1 #f)
+          (define analysis-v2 (transpose (analyse-matrix (transpose analysis-h2))))
+          
+          (define sv2 (transpose (synthetize-matrix (transpose analysis-v2))))
 
-(define analyse-v1
-  (new button%
-       [parent analysis-panel]
-       [label "AnV1"]
-       [callback
-        (λ (button event)
-          (send x-field set-value (number->string 256))
-          (send y-field set-value (number->string 256))
-          (set! analysis-v1 (transpose (analyse-matrix (transpose analysis-h1))))
-          (set! 3vt-matrix
-                (for/vector ([i 512])
-                  (for/vector ([j 512])
-                    (matrix-get analysis-v1 i j))))
-          (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE
-                (matrix->bytes 3vt-matrix
-                               (string->number (send scale-field get-value))
-                               (string->number (send offset-field get-value))
-                               (string->number (send x-field get-value))
-                               (string->number (send y-field get-value))
-                               0))
-          (send 3vt-canvas on-paint))]))
+          (define sh2 (synthetize-matrix sv2))
+          
+          (for ([i 256])
+            (for ([j 256])
+              (matrix-set qq i j (matrix-get sh2 i j))))
 
-(define analysis-h2 #f)
+          (define sv1 (transpose (synthetize-matrix (transpose qq))))
+          
+          (define sh1 (synthetize-matrix sv1))
+          (set! qq sh1)
 
-(define analyse-h2
-  (new button%
-       [parent analysis-panel]
-       [label "AnH2"]
-       [callback
-        (λ (button event)
-          (send x-field set-value (number->string 128))
-          (send y-field set-value (number->string 256))
-          (set! analysis-h2 (analyse-matrix (vector-take analysis-v1 256)))
-          (set! 3vt-matrix
-                (for/vector ([i 512])
-                  (for/vector ([j 512])
-                    (if (and (< i 256) (< j 256))
-                        (matrix-get analysis-h2 i j)
-                        (matrix-get 3vt-matrix i j)))))
-          (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE
-                (matrix->bytes 3vt-matrix
-                               (string->number (send scale-field get-value))
-                               (string->number (send offset-field get-value))
-                               (string->number (send x-field get-value))
-                               (string->number (send y-field get-value))
-                               1))
-          (send 3vt-canvas on-paint))]))
+          (set! 3vt-matrix qq)
 
-(define analysis-v2 #f)
-
-(define analyse-v2
-  (new button%
-       [parent analysis-panel]
-       [label "AnV2"]
-       [callback
-        (λ (button event)
-          (send x-field set-value (number->string 128))
-          (send y-field set-value (number->string 128))
-          (set! analysis-v2 (transpose (analyse-matrix (vector-take (transpose analysis-h2) 256))))
-          (set! 3vt-matrix
-                (for/vector ([i 512])
-                  (for/vector ([j 512])
-                    (if (and (< i 256) (< j 256))
-                        (matrix-get analysis-v2 i j)
-                        (matrix-get 3vt-matrix i j)))))
           (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE
                 (matrix->bytes 3vt-matrix 
                                (string->number (send scale-field get-value))
@@ -258,111 +174,4 @@
                                (string->number (send x-field get-value))
                                (string->number (send y-field get-value))
                                1))
-          (send 3vt-canvas on-paint))]))
-
-;------------------------------------SYNTHESIS PANEL----------------------------------------
-
-(define synthesis-panel
-  (new vertical-panel%
-       [parent main-panel]
-       [vert-margin 20]))
-
-(define syn-v2 #f)
-
-(define synthesis-v2
-  (new button%
-       [parent synthesis-panel]
-       [label "SyV2"]
-       [callback
-        (λ (button event)
-          (send x-field set-value (number->string 128))
-          (send y-field set-value (number->string 256))
-          (set! syn-v2 (transpose (synthetize-matrix (vector-take (transpose analysis-v2) 256))))
-          (set! 3vt-matrix
-                (for/vector ([i 512])
-                  (for/vector ([j 512])
-                    (if (and (< i 256) (< j 256))
-                        (matrix-get syn-v2 i j)
-                        (matrix-get 3vt-matrix i j)))))
-          (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE
-                (matrix->bytes 3vt-matrix
-                               (string->number (send scale-field get-value))
-                               (string->number (send offset-field get-value))
-                               (string->number (send x-field get-value))
-                               (string->number (send y-field get-value))
-                               1))
-          (send 3vt-canvas on-paint))]))
-
-(define syn-h2 #f)
-
-(define synthesis-h2
-  (new button%
-       [parent synthesis-panel]
-       [label "SyH2"]
-       [callback
-        (λ (button event)
-          (send x-field set-value (number->string 256))
-          (send y-field set-value (number->string 256))
-          (set! syn-h2 (synthetize-matrix (vector-take syn-v2 256)))
-          (set! 3vt-matrix
-                (for/vector ([i 512])
-                  (for/vector ([j 512])
-                    (if (and (< i 256) (< j 256))
-                        (matrix-get syn-h2 i j)
-                        (matrix-get 3vt-matrix i j)))))
-          (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE
-                (matrix->bytes 3vt-matrix
-                               (string->number (send scale-field get-value))
-                               (string->number (send offset-field get-value))
-                               (string->number (send x-field get-value))
-                               (string->number (send y-field get-value))
-                               1))
-          (send 3vt-canvas on-paint))]))
-
-(define syn-v1 #f)
-
-(define synthesis-v1
-  (new button%
-       [parent synthesis-panel]
-       [label "SyV1"]
-       [callback
-        (λ (button event)
-          (send x-field set-value (number->string 256))
-          (send y-field set-value (number->string 512))
-          (set! syn-v1 (transpose (synthetize-matrix (vector-take (transpose 3vt-matrix) 512))))
-          (set! 3vt-matrix
-                (for/vector ([i 512])
-                  (for/vector ([j 512])
-                    (matrix-get syn-v1 i j))))
-          (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE
-                (matrix->bytes 3vt-matrix
-                               (string->number (send scale-field get-value))
-                               (string->number (send offset-field get-value))
-                               (string->number (send x-field get-value))
-                               (string->number (send y-field get-value))
-                               0))
-          (send 3vt-canvas on-paint))]))
-
-(define syn-h1 #f)
-
-(define synthesis-h1
-  (new button%
-       [parent synthesis-panel]
-       [label "SyH1"]
-       [callback
-        (λ (button event)
-          (send x-field set-value (number->string 512))
-          (send y-field set-value (number->string 512))
-          (set! syn-h1 (synthetize-matrix (vector-take syn-v1 512)))
-          (set! 3vt-matrix
-                (for/vector ([i 512])
-                  (for/vector ([j 512])
-                    (matrix-get syn-h1 i j))))
-          (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE
-                (matrix->bytes 3vt-matrix
-                               (string->number (send scale-field get-value))
-                               (string->number (send offset-field get-value))
-                               (string->number (send x-field get-value))
-                               (string->number (send y-field get-value))
-                               0))
           (send 3vt-canvas on-paint))]))
