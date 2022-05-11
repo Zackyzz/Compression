@@ -60,8 +60,15 @@
 (define (flatten-matrix matrix)
   (apply vector-append (vector->list matrix)))
 
-(define (transpose matrix)
-  (apply vector-map vector (vector->list matrix)))
+(define (get-columns matrix size)
+  (for/vector ([i size])
+    (for/vector ([j size])
+      (matrix-get matrix j i))))
+
+(define (get-lines matrix size)
+  (for/vector ([i size])
+    (for/vector ([j size])
+      (matrix-get matrix i j))))
 
 (define (matrix-get matrix i j)
   (vector-ref (vector-ref matrix i) j))
