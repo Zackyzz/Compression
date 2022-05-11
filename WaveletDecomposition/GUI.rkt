@@ -1,5 +1,5 @@
 #lang racket/gui
-(require "Wavelet.rkt")
+(require "Wavelet.rkt" binaryio)
 
 (define frame
   (new frame%
@@ -35,7 +35,6 @@
 (define image-name #f)
 (define input-buffer (make-bytes (* SIZE SIZE 4)))
 (define 3vt-matrix #f)
-(define original-matrix #f)
 
 (define load-button-input
   (new button%
@@ -49,8 +48,7 @@
             (set! input-bitmap (read-bitmap path))
             (send input-canvas on-paint)
             (send input-bitmap get-argb-pixels 0 0 SIZE SIZE input-buffer)
-            (set! 3vt-matrix (get-matrix input-buffer))
-            (set! original-matrix (get-matrix input-buffer))))]))
+            (set! 3vt-matrix (get-matrix input-buffer))))]))
 
 ;------------------------------------WAVELET PANEL----------------------------------------
 
@@ -70,6 +68,35 @@
        [paint-callback
         (λ (canvas dc)
           (send dc draw-bitmap 3vt-bitmap 20 20))]))
+
+(define temp #f)
+
+(define load-3vt
+  (new button%
+       [parent 3vt-panel]
+       [label "Load wavelet"]
+       [callback
+        (λ (button event)
+          (define file-name (get-file #f #f "../WaveletDecomposition/utils"))
+          (define in (open-input-file file-name))
+          (when file-name
+            (set! temp
+                  (for/vector ([i (* 512 512)])
+                    (read-float 8 in)))
+            (close-input-port in)))]))
+
+(define save-3vt
+  (new button%
+       [parent 3vt-panel]
+       [label "Save wavelet"]
+       [callback
+        (λ (button event)
+          (when image-name
+            (define out (open-output-file (string-append "utils/" image-name ".3vt") #:exists 'replace))
+            (when (and out 3vt-matrix)
+              (for ([i (flatten-matrix 3vt-matrix)])
+                (write-float i 8 out))
+              (close-output-port out))))]))
 
 ;------------------------------------BUTTONS PANEL----------------------------------------
 
@@ -108,11 +135,11 @@
        [label "Chebyshev distance:"]
        [callback
         (λ (button event)
-          (when (and original-matrix 3vt-matrix)
-            (define original (vector->list (flatten-matrix original-matrix)))
-            (define decoded (vector->list (flatten-matrix 3vt-matrix)))
-            (send min-error set-value (number->string (apply min (map - original decoded))))
-            (send max-error set-value (number->string (apply max (map - original decoded))))))]))
+          (when 3vt-matrix
+            (define original (vector->list (flatten-matrix (get-matrix input-buffer))))
+            (define 3vt (vector->list (vector-map exact-round (flatten-matrix 3vt-matrix))))
+            (send min-error set-value (number->string (apply min (map - original 3vt))))
+            (send max-error set-value (number->string (apply max (map - original 3vt))))))]))
 
 (define min-error
   (new text-field%
@@ -126,7 +153,7 @@
        [label "Max:"]
        [init-value ""]))
 
-;----------------------------------------------------------------------------
+;------------------------------------ANALYSIS PANEL----------------------------------------
 
 (define analysis-panel
   (new vertical-panel%
@@ -142,9 +169,7 @@
           (send x-field set-value (number->string 256))
           (send y-field set-value (number->string 512))
           (define ah1 (analyse-matrix 3vt-matrix))
-          (for ([i 512])
-            (for ([j 512])
-              (matrix-set 3vt-matrix i j (matrix-get ah1 i j))))
+          (set! 3vt-matrix ah1)
           (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE
                 (matrix->bytes 3vt-matrix
                                (string->number (send scale-field get-value))
@@ -163,9 +188,7 @@
           (send x-field set-value (number->string 256))
           (send y-field set-value (number->string 256))
           (define av1 (get-columns (analyse-matrix (get-columns 3vt-matrix 512)) 512))
-          (for ([i 512])
-            (for ([j 512])
-              (matrix-set 3vt-matrix i j (matrix-get av1 i j))))
+          (set! 3vt-matrix av1)
           (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE
                 (matrix->bytes 3vt-matrix
                                (string->number (send scale-field get-value))
@@ -275,9 +298,7 @@
           (send x-field set-value (number->string 256))
           (send y-field set-value (number->string 512))
           (define sv1 (get-columns (synthetize-matrix (get-columns 3vt-matrix 512)) 512))
-          (for ([i 512])
-            (for ([j 512])
-              (matrix-set 3vt-matrix i j (matrix-get sv1 i j))))
+          (set! 3vt-matrix sv1)
           (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE
                 (matrix->bytes 3vt-matrix
                                (string->number (send scale-field get-value))
@@ -296,9 +317,7 @@
           (send x-field set-value (number->string 512))
           (send y-field set-value (number->string 512))
           (define sh1 (synthetize-matrix 3vt-matrix))
-          (for ([i 512])
-            (for ([j 512])
-              (matrix-set 3vt-matrix i j (matrix-get sh1 i j))))
+          (set! 3vt-matrix sh1)
           (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE
                 (matrix->bytes 3vt-matrix
                                (string->number (send scale-field get-value))
