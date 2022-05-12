@@ -5,19 +5,15 @@
   (new frame%
        [label "Wavelet Decomposition"]
        [x 250] [y 150]
-       [width 1400] [height 630]))
+       [width 1450] [height 630]))
 
 (send frame show #t)
 
-(define main-panel
-  (new horizontal-panel%
-       [parent frame]))
+(define main-panel (new horizontal-panel% [parent frame]))
 
 ;------------------------------------INPUT PANEL----------------------------------------
 
-(define input-panel
-  (new vertical-panel%
-       [parent main-panel]))
+(define input-panel (new vertical-panel% [parent main-panel]))
 
 (define input-bitmap (make-bitmap SIZE SIZE))
 (define input-dc (send input-bitmap make-dc))
@@ -26,8 +22,7 @@
 
 (define input-canvas
   (new canvas%
-       [parent input-panel]
-       [min-width SIZE]
+       [parent input-panel] [min-width SIZE]
        [paint-callback
         (λ (canvas dc)
           (send dc draw-bitmap input-bitmap 20 20))]))
@@ -38,8 +33,7 @@
 
 (define load-button-input
   (new button%
-       [parent input-panel]
-       [label "Load image"]
+       [parent input-panel] [label "Load image"]
        [callback
         (λ (button event)
           (define path (get-file #f #f "../WaveletDecomposition/utils" #f #f null))
@@ -52,9 +46,7 @@
 
 ;------------------------------------WAVELET PANEL----------------------------------------
 
-(define 3vt-panel
-  (new vertical-panel%
-       [parent main-panel]))
+(define 3vt-panel (new vertical-panel% [parent main-panel]))
 
 (define 3vt-bitmap (make-bitmap SIZE SIZE))
 (define 3vt-dc (send 3vt-bitmap make-dc))
@@ -63,16 +55,14 @@
 
 (define 3vt-canvas
   (new canvas%
-       [parent 3vt-panel]
-       [min-width SIZE]
+       [parent 3vt-panel] [min-width SIZE]
        [paint-callback
         (λ (canvas dc)
           (send dc draw-bitmap 3vt-bitmap 20 20))]))
 
 (define load-3vt
   (new button%
-       [parent 3vt-panel]
-       [label "Load wavelet"]
+       [parent 3vt-panel] [label "Load wavelet"]
        [callback
         (λ (button event)
           (define file-name (get-file #f #f "../WaveletDecomposition/utils" #f #f null '(("wvt" "*.3vt"))))
@@ -86,8 +76,7 @@
 
 (define save-3vt
   (new button%
-       [parent 3vt-panel]
-       [label "Save wavelet"]
+       [parent 3vt-panel] [label "Save wavelet"]
        [callback
         (λ (button event)
           (when image-name
@@ -99,40 +88,15 @@
 
 ;------------------------------------BUTTONS PANEL----------------------------------------
 
-(define buttons-panel
-  (new vertical-panel%
-       [parent main-panel]
-       [vert-margin 20]))
-
-(define scale-field
-  (new text-field%
-       [parent buttons-panel]
-       [label "s: "]
-       [init-value "5.7"]))
-
-(define offset-field
-  (new text-field%
-       [parent buttons-panel]
-       [label "o: "]
-       [init-value "128"]))
-
-(define x-field
-  (new text-field%
-       [parent buttons-panel]
-       [label "x: "]
-       [init-value "0"]))
-
-(define y-field
-  (new text-field%
-       [parent buttons-panel]
-       [label "y: "]
-       [init-value "0"]))
+(define buttons-panel (new vertical-panel% [parent main-panel] [vert-margin 20]))
+(define scale-field (new text-field% [parent buttons-panel] [label "s: "] [init-value "5.7"]))
+(define offset-field (new text-field% [parent buttons-panel] [label "o: "] [init-value "128"]))
+(define x-field (new text-field% [parent buttons-panel] [label "x: "] [init-value "0"]))
+(define y-field (new text-field% [parent buttons-panel] [label "y: "] [init-value "0"]))
 
 (define 3vt-refresh
   (new button%
-       [parent buttons-panel]
-       [label "Refresh Wavelet:"]
-       [horiz-margin 10]
+       [parent buttons-panel] [label "Refresh Wavelet:"] [horiz-margin 10]
        [callback
         (λ (button event)
           (when 3vt-matrix
@@ -146,9 +110,7 @@
 
 (define 3vt-error
   (new button%
-       [parent buttons-panel]
-       [label "Chebyshev distance:"]
-       [horiz-margin 20]
+       [parent buttons-panel] [label "Chebyshev distance:"] [horiz-margin 20]
        [callback
         (λ (button event)
           (when 3vt-matrix
@@ -157,35 +119,26 @@
             (send min-error set-value (number->string (apply min (map - original 3vt))))
             (send max-error set-value (number->string (apply max (map - original 3vt))))))]))
 
-(define min-error
-  (new text-field%
-       [parent buttons-panel]
-       [label "Min:"]
-       [init-value ""]))
+(define min-error (new text-field% [parent buttons-panel] [label "Min:"] [init-value ""]))
+(define max-error (new text-field% [parent buttons-panel] [label "Max:"] [init-value ""]))
 
-(define max-error
-  (new text-field%
-       [parent buttons-panel]
-       [label "Max:"]
-       [init-value ""]))
+;------------------------------------ANALYSIS + SYNTHETIS PANELS----------------------------------------
 
-;------------------------------------ANALYSIS PANEL----------------------------------------
+(define analysis-panel (new vertical-panel% [parent main-panel] [vert-margin 20]))
+(define synthesis-panel (new vertical-panel% [parent main-panel] [vert-margin 20]))
 
-(define analysis-panel
-  (new vertical-panel%
-       [parent main-panel]
-       [vert-margin 20]))
-
-(define analyse-h1
+(for ([i 10])
   (new button%
        [parent analysis-panel]
-       [label "AnH1"]
+       [label (string-append "An" (if (even? i) "H" "V") (number->string (+ 1 (quotient i 2))))]
        [callback
         (λ (button event)
-          (send x-field set-value (number->string 256))
-          (send y-field set-value (number->string 512))
-          (overwrite 3vt-matrix (make analysis 3vt-matrix))
-          
+          (define size (quotient SIZE (expt 2 (quotient i 2))))
+          (send x-field set-value (number->string (quotient size 2)))
+          (send y-field set-value (number->string (if (odd? i) (quotient size 2) size)))
+          (if (even? i)
+              (overwrite 3vt-matrix (make analysis (modify 3vt-matrix size #f)))
+              (overwrite 3vt-matrix (modify (make analysis (modify 3vt-matrix size)) size)))
           (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE
                 (matrix->bytes 3vt-matrix
                                (string->number (send scale-field get-value))
@@ -194,131 +147,18 @@
                                (string->number (send y-field get-value))))
           (send 3vt-canvas on-paint))]))
 
-(define analyse-v1
-  (new button%
-       [parent analysis-panel]
-       [label "AnV1"]
-       [callback
-        (λ (button event)
-          (send x-field set-value (number->string 256))
-          (send y-field set-value (number->string 256))
-          (overwrite 3vt-matrix (modify (make analysis (modify 3vt-matrix 512)) 512))
-          
-          (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE
-                (matrix->bytes 3vt-matrix
-                               (string->number (send scale-field get-value))
-                               (string->number (send offset-field get-value))
-                               (string->number (send x-field get-value))
-                               (string->number (send y-field get-value))))
-          (send 3vt-canvas on-paint))]))
-
-(define analyse-h2
-  (new button%
-       [parent analysis-panel]
-       [label "AnH2"]
-       [callback
-        (λ (button event)
-          (send x-field set-value (number->string 128))
-          (send y-field set-value (number->string 256))
-          (overwrite 3vt-matrix (make analysis (modify 3vt-matrix 256 #f)))
-          
-          (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE
-                (matrix->bytes 3vt-matrix
-                               (string->number (send scale-field get-value))
-                               (string->number (send offset-field get-value))
-                               (string->number (send x-field get-value))
-                               (string->number (send y-field get-value))))
-          (send 3vt-canvas on-paint))]))
-
-(define analyse-v2
-  (new button%
-       [parent analysis-panel]
-       [label "AnV2"]
-       [callback
-        (λ (button event)
-          (send x-field set-value (number->string 128))
-          (send y-field set-value (number->string 128))
-          (overwrite 3vt-matrix (modify (make analysis (modify 3vt-matrix 256)) 256))
-          
-          (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE
-                (matrix->bytes 3vt-matrix
-                               (string->number (send scale-field get-value))
-                               (string->number (send offset-field get-value))
-                               (string->number (send x-field get-value))
-                               (string->number (send y-field get-value))))
-          (send 3vt-canvas on-paint))]))
-
-;------------------------------------SYNTHESIS PANEL----------------------------------------
-
-(define synthesis-panel
-  (new vertical-panel%
-       [parent main-panel]
-       [vert-margin 20]))
-
-(define synthesis-v2
+(for ([i 10])
   (new button%
        [parent synthesis-panel]
-       [label "SyV2"]
+       [label (string-append "Sy" (if (even? i) "H" "V") (number->string (+ 1 (quotient i 2))))]
        [callback
         (λ (button event)
-          (send x-field set-value (number->string 128))
-          (send y-field set-value (number->string 256))
-          (overwrite 3vt-matrix (modify (make synthesis (modify 3vt-matrix 256)) 256))
-          
-          (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE
-                (matrix->bytes 3vt-matrix
-                               (string->number (send scale-field get-value))
-                               (string->number (send offset-field get-value))
-                               (string->number (send x-field get-value))
-                               (string->number (send y-field get-value))))
-          (send 3vt-canvas on-paint))]))
-
-(define synthesis-h2
-  (new button%
-       [parent synthesis-panel]
-       [label "SyH2"]
-       [callback
-        (λ (button event)
-          (send x-field set-value (number->string 256))
-          (send y-field set-value (number->string 256))
-          (overwrite 3vt-matrix (make synthesis (modify 3vt-matrix 256 #f)))
-          
-          (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE
-                (matrix->bytes 3vt-matrix
-                               (string->number (send scale-field get-value))
-                               (string->number (send offset-field get-value))
-                               (string->number (send x-field get-value))
-                               (string->number (send y-field get-value))))
-          (send 3vt-canvas on-paint))]))
-
-(define synthesis-v1
-  (new button%
-       [parent synthesis-panel]
-       [label "SyV1"]
-       [callback
-        (λ (button event)
-          (send x-field set-value (number->string 256))
-          (send y-field set-value (number->string 512))
-          (overwrite 3vt-matrix (modify (make synthesis (modify 3vt-matrix 512)) 512))
-          
-          (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE
-                (matrix->bytes 3vt-matrix
-                               (string->number (send scale-field get-value))
-                               (string->number (send offset-field get-value))
-                               (string->number (send x-field get-value))
-                               (string->number (send y-field get-value))))
-          (send 3vt-canvas on-paint))]))
-
-(define synthesis-h1
-  (new button%
-       [parent synthesis-panel]
-       [label "SyH1"]
-       [callback
-        (λ (button event)
-          (send x-field set-value (number->string 512))
-          (send y-field set-value (number->string 512))
-          (overwrite 3vt-matrix (make synthesis 3vt-matrix))
-          
+          (define size (quotient SIZE (expt 2 (quotient i 2))))
+          (send x-field set-value (number->string (if (even? i) size (quotient size 2))))
+          (send y-field set-value (number->string size))
+          (if (even? i)
+              (overwrite 3vt-matrix (make synthesis (modify 3vt-matrix size #f)))
+              (overwrite 3vt-matrix (modify (make synthesis (modify 3vt-matrix size)) size)))
           (send 3vt-bitmap set-argb-pixels 0 0 SIZE SIZE
                 (matrix->bytes 3vt-matrix
                                (string->number (send scale-field get-value))
