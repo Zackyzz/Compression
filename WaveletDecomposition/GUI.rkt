@@ -4,7 +4,7 @@
 (define frame
   (new frame%
        [label "Wavelet Decomposition"]
-       [x 40] [y 100]
+       [x 225] [y 200]
        [width 1450] [height 625]))
 
 (send frame show #t)
@@ -96,7 +96,7 @@
 
 (define 3vt-refresh
   (new button%
-       [parent buttons-panel] [label "Refresh Wavelet:"] [horiz-margin 10]
+       [parent buttons-panel] [label "Refresh Wavelet"] [horiz-margin 10]
        [callback
         (λ (button event)
           (when 3vt-matrix
@@ -110,7 +110,7 @@
 
 (define 3vt-error
   (new button%
-       [parent buttons-panel] [label "Chebyshev distance:"] [horiz-margin 20]
+       [parent buttons-panel] [label "Chebyshev distance"] [horiz-margin 20]
        [callback
         (λ (button event)
           (when 3vt-matrix
@@ -128,7 +128,7 @@
 (define synthesis-panel (new vertical-panel% [parent main-panel] [vert-margin 20]))
 
 (define analysis-buttons
-  (for/vector ([i 14])
+  (for/vector ([i 10])
     (new button%
          [parent analysis-panel]
          [label (string-append "An" (if (even? i) "H" "V") (number->string (+ 1 (quotient i 2))))]
@@ -149,7 +149,7 @@
             (send 3vt-canvas on-paint))])))
 
 (define synthesis-buttons
-  (for/vector ([i 14])
+  (for/vector ([i 10])
     (new button%
          [parent synthesis-panel]
          [label (string-append "Sy" (if (even? i) "H" "V") (number->string (+ 1 (quotient i 2))))]
@@ -172,20 +172,18 @@
 (define analysis-button
   (new button%
        [parent buttons-panel]
-       [label "Analysis"]
+       [label "Full Analysis"]
        [callback
         (λ (button event)
-          (for ([i (* 2 (string->number (send level-field get-value)))])
+          (for ([i 10])
             (send (vector-ref analysis-buttons i) command 'button)))]))
 
 (define synthesis-button
   (new button%
        [parent buttons-panel]
-       [label "Synthetis"]
+       [label "Full Synthetis"]
        [callback
         (λ (button event)
           (define limit (sub1 (vector-length synthesis-buttons)))
-          (for ([i (* 2 (string->number (send level-field get-value)))])
+          (for ([i 10])
             (send (vector-ref synthesis-buttons (- limit i)) command 'button)))]))
-
-(define level-field (new text-field% [parent buttons-panel] [label "Level: "] [init-value "5"]))
